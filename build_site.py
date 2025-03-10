@@ -36,7 +36,7 @@ def build_site():
                 # copy the file to the build directory
                 os.makedirs(os.path.join(build_dir, "images"), exist_ok=True)
                 shutil.copy(os.path.join(root, file), os.path.join(build_dir, "images", file))
-                build_url = f"/images/{file}"
+                build_url = f"images/{file}"
                 parsed_files.append({"name": file_name, "content": {"url": build_url}})
 
     # Add conf files to the parsed files
