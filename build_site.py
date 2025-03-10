@@ -10,6 +10,7 @@ requirements = [
 ]
 
 entrypoint = "PMO_Builder.py"
+build_dir = "docs"
 
 def build_site():
     # Load the template
@@ -32,8 +33,8 @@ def build_site():
             if file.endswith(".png"):
                 file_name = os.path.join(root, file).replace("pmotools-app/", "")
                 # copy the file to the build directory
-                os.makedirs("build/images", exist_ok=True)
-                shutil.copy(os.path.join(root, file), os.path.join("build/images", file))
+                os.makedirs(os.path.join(build_dir, "images"), exist_ok=True)
+                shutil.copy(os.path.join(root, file), os.path.join(build_dir, "images", file))
                 build_url = f"/images/{file}"
                 parsed_files.append({"name": file_name, "content": {"url": build_url}})
 
@@ -50,8 +51,8 @@ def build_site():
     rendered = template.render(files=parsed_files, requirements=requirements, entrypoint=entrypoint)
 
     # Write the rendered template to the output file
-    os.makedirs("build", exist_ok=True)
-    with open("build/index.html", "w") as f:
+    os.makedirs(build_dir, exist_ok=True)
+    with open(os.path.join(build_dir, "index.html"), "w") as f:
         f.write(rendered)
 
 
