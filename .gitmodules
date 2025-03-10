@@ -1,0 +1,3 @@
+[submodule "pmotools-app"]
+	path = pmotools-app
+	url = https://github.com/plasmogenepi/pmotools-app.git
