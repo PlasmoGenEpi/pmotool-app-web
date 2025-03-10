@@ -6,7 +6,8 @@ requirements = [
     "pandas",
     "fuzzywuzzy",
     "openpyxl",
-    "http://0.0.0.0:8000/assets/pmotools_python-0.1.0-py3-none-any.whl"
+    # TODO: remove this once the package is published
+    "https://github.com/PlasmoGenEpi/pmotool-app-web/raw/refs/heads/main/docs/assets/pmotools_python-0.1.0-py3-none-any.whl"
 ]
 
 entrypoint = "PMO_Builder.py"
