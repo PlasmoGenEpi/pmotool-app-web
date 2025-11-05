@@ -7,7 +7,7 @@ requirements = [
     "fuzzywuzzy",
     "openpyxl",
     # TODO: remove this once the package is published
-    "https://plasmogenepi.github.io/pmotool-app-web/assets/pmotools-0.1.0-py3-none-any.whl"
+    "https://plasmogenepi.github.io/pmotool-app-web/assets/pmotools_python-0.1.0-py3-none-any.whl"
 ]
 
 entrypoint = "PMO_Builder.py"
