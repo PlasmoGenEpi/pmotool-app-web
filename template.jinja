@@ -17,18 +17,42 @@
     <div id="root"></div>
     <script type="module">
       import { mount } from "https://cdn.jsdelivr.net/npm/@stlite/browser@0.76.0/build/stlite.js";
-      mount(
-        {
-            "requirements": {{ requirements }},
-            "entrypoint": "{{ entrypoint }}",
-            "files": {
-                {% for file in files %}
-                "{{ file.name }}": {{ file.content }},
-                {% endfor %}
+      
+      // Load files from URLs instead of embedding them
+      async function loadFiles() {
+        const files = {};
+        const fileList = {{ files|tojson }};
+        
+        // Load each file from its URL
+        for (const file of fileList) {
+          try {
+            const response = await fetch(file.url);
+            if (response.ok) {
+              // Load text files (images are served statically, not in filesystem)
+              const content = await response.text();
+              files[file.name] = content;
+            } else {
+              console.warn(`Failed to load ${file.name} from ${file.url}`);
             }
-        },
-        document.getElementById("root"),
-      );
+          } catch (error) {
+            console.error(`Error loading ${file.name} from ${file.url}:`, error);
+          }
+        }
+        
+        return files;
+      }
+      
+      // Mount stlite after loading all files
+      loadFiles().then(files => {
+        mount(
+          {
+            "requirements": {{ requirements|tojson }},
+            "entrypoint": "{{ entrypoint }}",
+            "files": files
+          },
+          document.getElementById("root"),
+        );
+      });
     </script>
   </body>
 </html>
