@@ -81,62 +81,6 @@ def build_site():
                     file_name = relative_path.replace("\\", "/")
                     parsed_files.append({"name": file_name, "url": f"app/site-packages/{file_name}"})
         
-        # Patch pmotools/__init__.py to ensure __version__ is defined
-        # Since pmotools isn't installed via pip in stlite, importlib.metadata won't work
-        # We need to set __version__ directly
-        pmotools_init = os.path.join(app_dir, "site-packages", "pmotools", "__init__.py")
-        if os.path.exists(pmotools_init):
-            with open(pmotools_init, 'r') as f:
-                content = f.read()
-            
-            # Replace the try/except version lookup block with a simple hardcoded version
-            # Find the try block that tries to get version from importlib.metadata
-            import re
-            
-            # Pattern to match: try: ... __version__ = version("pmotools") ... except: __version__ = "0+local"
-            # Replace entire block with just: __version__ = "0.1.0"
-            pattern = r'try:\s*# Use the installed distribution name.*?__version__ = "0\+local"'
-            
-            # Try regex replacement first
-            new_content = re.sub(
-                pattern,
-                '__version__ = "0.1.0"  # Set version for browser environment',
-                content,
-                flags=re.DOTALL
-            )
-            
-            # If regex didn't work, do line-by-line replacement
-            if new_content == content:
-                lines = content.split('\n')
-                new_lines = []
-                skip_block = False
-                
-                for i, line in enumerate(lines):
-                    # Detect start of version try block
-                    if 'try:' in line and i + 1 < len(lines) and '# Use the installed distribution name' in lines[i + 1]:
-                        skip_block = True
-                        new_lines.append('__version__ = "0.1.0"  # Set version for browser environment')
-                        continue
-                    elif skip_block and 'except PackageNotFoundError:' in line:
-                        skip_block = False
-                        continue
-                    elif skip_block:
-                        continue
-                    else:
-                        new_lines.append(line)
-                
-                new_content = '\n'.join(new_lines)
-            
-            # Final fallback: replace any remaining "0+local" with "0.1.0"
-            new_content = new_content.replace('__version__ = "0+local"', '__version__ = "0.1.0"')
-            
-            # Ensure __version__ exists somewhere
-            if '__version__' not in new_content:
-                new_content += '\n__version__ = "0.1.0"  # Set version for browser environment\n'
-            
-            with open(pmotools_init, 'w') as f:
-                f.write(new_content)
-        
         # Create __init__.py for site-packages if needed
         site_packages_init = os.path.join(app_dir, "site-packages", "__init__.py")
         if not os.path.exists(site_packages_init):
