@@ -7,7 +7,7 @@ requirements = [
     "fuzzywuzzy",
     "openpyxl",
     # TODO: remove this once the package is published
-    "https://plasmogenepi.github.io/pmotool-app-web/assets/pmotools_python-0.1.0-py3-none-any.whl"
+    "https://plasmogenepi.github.io/pmotool-app-web/assets/pmotools-0.1.0-py3-none-any.whl"
 ]
 
 entrypoint = "PMO_Builder.py"
@@ -19,33 +19,44 @@ def build_site():
     with open(template_path, "r") as f:
         template = jinja2.Template(f.read())
 
-    # Load the python files in all subdirectories
+    # Copy Python and JSON files from submodule to docs/app/ directory
+    app_dir = os.path.join(build_dir, "app")
     parsed_files = []
+    
+    # Copy Python files
     for root, dirs, files in os.walk("pmotools-app"):
         for file in files:
             if file.endswith(".py"):
-                with open(os.path.join(root, file), "r") as f:
-                    file_name = os.path.join(root, file).replace("pmotools-app/", "")
-                    parsed_files.append({"name": file_name, "content": f"`{f.read()}`"})
+                src_path = os.path.join(root, file)
+                # Preserve directory structure relative to pmotools-app
+                rel_path = os.path.relpath(src_path, "pmotools-app")
+                dst_path = os.path.join(app_dir, rel_path)
+                
+                # Create destination directory
+                os.makedirs(os.path.dirname(dst_path), exist_ok=True)
+                shutil.copy(src_path, dst_path)
+                
+                # Store file path for template
+                file_name = rel_path.replace("\\", "/")  # Normalize path separators
+                parsed_files.append({"name": file_name, "url": f"app/{file_name}"})
 
-    # Add the images to the parsed files
-    for root, dirs, files in os.walk("pmotools-app"):
-        for file in files:
-            if file.endswith(".png"):
-                file_name = os.path.join(root, file).replace("pmotools-app/", "")
-                # copy the file to the build directory
-                os.makedirs(os.path.join(build_dir, "images"), exist_ok=True)
-                shutil.copy(os.path.join(root, file), os.path.join(build_dir, "images", file))
-                build_url = f"images/{file}"
-                parsed_files.append({"name": file_name, "content": {"url": build_url}})
-
-    # Add conf files to the parsed files
+    # Copy JSON config files
     for root, dirs, files in os.walk("pmotools-app"):
         for file in files:
             if file.endswith(".json"):
-                with open(os.path.join(root, file), "r") as f:
-                    file_name = os.path.join(root, file).replace("pmotools-app/", "")
-                    parsed_files.append({"name": file_name, "content": f"`{f.read()}`"})
+                src_path = os.path.join(root, file)
+                # Preserve directory structure relative to pmotools-app
+                rel_path = os.path.relpath(src_path, "pmotools-app")
+                dst_path = os.path.join(app_dir, rel_path)
+                
+                # Create destination directory
+                os.makedirs(os.path.dirname(dst_path), exist_ok=True)
+                shutil.copy(src_path, dst_path)
+                
+                # Store file path for template
+                file_name = rel_path.replace("\\", "/")  # Normalize path separators
+                parsed_files.append({"name": file_name, "url": f"app/{file_name}"})
+
 
 
     # Render the template
