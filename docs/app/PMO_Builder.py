@@ -1,4 +1,4 @@
-import _setup_pmotools
+import setup_pmotools
 import streamlit as st
 from src.format_page import render_header
 

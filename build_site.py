@@ -176,7 +176,7 @@ def build_site():
         parsed_files.append({"name": "pmotools/__init__.py", "url": "app/site-packages/pmotools/__init__.py"})
 
     # Create a setup helper to inject site-packages onto sys.path
-    setup_file_path = os.path.join(app_dir, "_setup_pmotools.py")
+    setup_file_path = os.path.join(app_dir, "setup_pmotools.py")
     with open(setup_file_path, "w", encoding="utf-8") as f:
         f.write(
             """import sys
@@ -191,9 +191,9 @@ if site_packages not in sys.path:
     parsed_files = [
         file_dict
         for file_dict in parsed_files
-        if file_dict["name"] != "_setup_pmotools.py"
+        if file_dict["name"] not in {"_setup_pmotools.py", "setup_pmotools.py"}
     ]
-    parsed_files.append({"name": "_setup_pmotools.py", "url": "app/_setup_pmotools.py"})
+    parsed_files.append({"name": "setup_pmotools.py", "url": "app/setup_pmotools.py"})
 
     # Ensure PMO_Builder imports the setup helper first
     pmo_builder_path = os.path.join(app_dir, "PMO_Builder.py")
@@ -201,8 +201,8 @@ if site_packages not in sys.path:
         with open(pmo_builder_path, "r", encoding="utf-8") as f:
             content = f.read()
 
-        if "import _setup_pmotools" not in content:
-            content = "import _setup_pmotools\n" + content
+        if "import setup_pmotools" not in content:
+            content = "import setup_pmotools\n" + content
             with open(pmo_builder_path, "w", encoding="utf-8") as f:
                 f.write(content)
 
@@ -217,7 +217,7 @@ if site_packages not in sys.path:
     # Write the GitHub Pages configuration so Jekyll keeps files that start with underscores
     config_path = os.path.join(build_dir, "_config.yml")
     config_contents = """include:
-  - "app/_setup_pmotools.py"
+  - "app/setup_pmotools.py"
   - "app/site-packages/__init__.py"
   - "app/site-packages/pmotools/**/*"
 """
