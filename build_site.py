@@ -214,6 +214,16 @@ if site_packages not in sys.path:
     with open(os.path.join(build_dir, "index.html"), "w", encoding="utf-8") as f:
         f.write(rendered)
 
+    # Write the GitHub Pages configuration so Jekyll keeps files that start with underscores
+    config_path = os.path.join(build_dir, "_config.yml")
+    config_contents = """include:
+  - "app/_setup_pmotools.py"
+  - "app/site-packages/__init__.py"
+  - "app/site-packages/pmotools/**/*"
+"""
+    with open(config_path, "w", encoding="utf-8") as f:
+        f.write(config_contents)
+
 
 if __name__ == "__main__":
     build_site()

@@ -1,0 +1,4 @@
+include:
+  - "app/_setup_pmotools.py"
+  - "app/site-packages/__init__.py"
+  - "app/site-packages/pmotools/**/*"
