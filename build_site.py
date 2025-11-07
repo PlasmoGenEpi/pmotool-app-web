@@ -7,7 +7,9 @@ requirements = [
     "fuzzywuzzy",
     "openpyxl",
     # TODO: remove this once the package is published
-    "https://plasmogenepi.github.io/pmotool-app-web/assets/pmotools_python-0.1.0-py3-none-any.whl"
+    "pmotools"
+    # "https://plasmogenepi.github.io/pmotool-app-web/assets/pmotools-0.1.0-py3-none-any.whl"
+    # "http://localhost:8001/assets/pmotools-0.1.0-py3-none-any.whl"
 ]
 
 entrypoint = "PMO_Builder.py"
@@ -21,7 +23,10 @@ def build_site():
 
     # Load the python files in all subdirectories
     parsed_files = []
+    ignored_dirs = [".venv", ".github", "tests"]
     for root, dirs, files in os.walk("pmotools-app"):
+        if any(dir in root for dir in ignored_dirs):
+            continue
         for file in files:
             if file.endswith(".py"):
                 with open(os.path.join(root, file), "r") as f:
@@ -30,6 +35,8 @@ def build_site():
 
     # Add the images to the parsed files
     for root, dirs, files in os.walk("pmotools-app"):
+        if any(dir in root for dir in ignored_dirs):
+            continue
         for file in files:
             if file.endswith(".png"):
                 file_name = os.path.join(root, file).replace("pmotools-app/", "")
@@ -41,6 +48,8 @@ def build_site():
 
     # Add conf files to the parsed files
     for root, dirs, files in os.walk("pmotools-app"):
+        if any(dir in root for dir in ignored_dirs):
+            continue
         for file in files:
             if file.endswith(".json"):
                 with open(os.path.join(root, file), "r") as f:
