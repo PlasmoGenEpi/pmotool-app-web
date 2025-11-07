@@ -17,40 +17,38 @@
     <div id="root"></div>
     <script type="module">
       import { mount } from "https://cdn.jsdelivr.net/npm/@stlite/browser@0.76.0/build/stlite.js";
-
+      
+      // Load files from URLs instead of embedding them
       async function loadFiles() {
         const files = {};
-        const fileList = {{ files | tojson }};
-
+        const fileList = {{ files|tojson }};
+        
+        // Load each file from its URL
         for (const file of fileList) {
           try {
             const response = await fetch(file.url);
-            if (!response.ok) {
-              console.warn(`Failed to load ${file.name} from ${file.url}`);
-              continue;
-            }
-
-            if (file.binary) {
-              const buffer = await response.arrayBuffer();
-              files[file.name] = new Uint8Array(buffer);
-            } else {
+            if (response.ok) {
+              // Load text files (images are served statically, not in filesystem)
               const content = await response.text();
               files[file.name] = content;
+            } else {
+              console.warn(`Failed to load ${file.name} from ${file.url}`);
             }
           } catch (error) {
             console.error(`Error loading ${file.name} from ${file.url}:`, error);
           }
         }
-
+        
         return files;
       }
-
-      loadFiles().then((files) => {
+      
+      // Mount stlite after loading all files
+      loadFiles().then(files => {
         mount(
           {
-            requirements: {{ requirements | tojson }},
-            entrypoint: "{{ entrypoint }}",
-            files,
+            "requirements": {{ requirements|tojson }},
+            "entrypoint": "{{ entrypoint }}",
+            "files": files
           },
           document.getElementById("root"),
         );
