@@ -94,10 +94,12 @@ def main():
         - **Library Sample Information**: Metadata describing each library created from a specimen.
         - **Panel Information**: A table including data on the targets that make up the panel.
         - **Sequencing Information**: Information on how the samples were sequenced.
-        - **Bioinformatics Information**: Information on the bioinformatics pipeline used to generate the allele data.
         - **Microhaplotype Information**: A table containing the alleles called for each of the samples for each of the targets and the reads associated.
+        - **Bioinformatics Information**: Information on the bioinformatics pipeline used to generate the allele data.
+        Optionally, you can also add:
+        - **Read Counts per Stage**: A table containing the raw read counts per sample and a table containing the read counts for each stage of the bioinformatics pipeline per sample per target.
 
-        More information on the file format can be found [here](https://plasmogenepi.github.io/PMO_Docs/format/FormatOverview.html)
+        More information on the file format can be found [here](https://plasmogenepi.github.io/PMO_Docs/)
         """
     )
 
@@ -136,21 +138,20 @@ if __name__ == "__main__":
     main()
 `,
                 
-                "pages/8_Create_Final_PMO.py": `import streamlit as st
+                "pages/9_Create_Final_PMO.py": `import streamlit as st
 import json
 import os
 from src.format_page import render_header
 from pmotools.pmo_builder.merge_to_pmo import merge_to_pmo
 
 check_dict = {
-    "panel_info": "Panel Information",
+    "project_info": "Project Information",
     "specimen_info": "Specimen Level Metadata",
     "library_sample_info": "Library Sample Level Metadata",
-    "mhap_data": "Microhaplotype Information",
-    # "demultiplexed_data": "Demultiplexed Samples",
+    "panel_info": "Panel Information",
     "seq_info": "Sequencing Information",
-    "bioinfo_methods_list": "Bioinformatics Information",
-    "bioinfo_run_infos": "Bioinformatics Information",
+    "microhaplotype_info": "Microhaplotype Information",
+    "bioinfo_run_infos": "Bioinformatics Runs Information",
 }
 
 
@@ -162,7 +163,7 @@ def check_all(check_dict):
     all_passed = True
     for check_key, source_page in check_dict.items():
         if check_key in st.session_state:
-            st.success(f"Data from {source_page} tab has been successfully" " loaded")
+            st.success(f"Data from {source_page} tab has been successfully loaded.")
         else:
             st.error(
                 f"Data from {source_page} tab not found. Please fill out"
@@ -181,7 +182,10 @@ def merge_data():
     # Get bioinformatics methods and runs
     bioinfo_methods = st.session_state.get("bioinfo_methods_list", [])
     bioinfo_runs = st.session_state.get("bioinfo_run_infos", [])
-
+    if "read_counts_per_stage" in st.session_state:
+        read_counts_per_stage = st.session_state["read_counts_per_stage"]
+    else:
+        read_counts_per_stage = None
     if st.button("Merge Data"):
         try:
             st.session_state["formatted_pmo"] = merge_to_pmo(
@@ -189,10 +193,11 @@ def merge_data():
                 library_sample_info=st.session_state["library_sample_info"],
                 sequencing_info=st.session_state["seq_info"],
                 panel_info=panel_info,
-                mhap_info=st.session_state["mhap_data"],
+                mhap_info=st.session_state["microhaplotype_info"],
                 bioinfo_method_info=bioinfo_methods,
                 bioinfo_run_info=bioinfo_runs,
                 project_info=st.session_state["project_info"],
+                read_counts_by_stage_info=read_counts_per_stage,
             )
             st.success("Data merged successfully!")
         except Exception as e:
@@ -231,205 +236,17 @@ if __name__ == "__main__":
         merge_data()
 `,
                 
-                "pages/5_Sequencing_Information.py": `import streamlit as st
+                "pages/6_Microhaplotype_Information.py": `import streamlit as st
 from src.format_page import render_header
-
-
-class SeqInfoPage:
-    def __init__(self):
-        self.seq_info = {}
-
-    def add_sequencing_information(self):
-        st.subheader("Add Sequencing Information")
-
-        self.seq_info["sequencing_info_name"] = st.text_input(
-            "Sequencing Information Name:",
-            help="A unique identifier for this sequencing info.",
-        )
-        seq_platform = st.text_input(
-            "Sequencing Platform:",
-            help="The sequencing platform used to sequence the run, e.g. ILLUMINA, Illumina MiSeq.",
-        )
-        seq_instrument_model = st.text_input(
-            "Sequencing Instrument Model:",
-            help="The sequencing instrument model used to sequence the run, e.g. Illumina MiSeq.",
-        )
-        library_layout = st.text_input(
-            "Library Layout:",
-            help="Specify the configuration of reads, e.g. paired-end.",
-        )
-        library_strategy = st.text_input(
-            "Library Strategy:",
-            help="The strategy used to prepare the library, e.g. WGS, WES, amplicon, etc.",
-        )
-        library_source = st.text_input(
-            "Library Source:",
-            help="The source of the library, e.g. DNA, RNA, etc.",
-        )
-        library_selection = st.text_input(
-            "Library Selection:",
-            help="The selection method used to prepare the library, e.g. PCR, etc.",
-        )
-        # Optional fields - each field is individually optional
-        st.subheader("Optional Fields")
-        st.write(
-            "The following fields are optional. Fill in only the ones you have information for."
-        )
-
-        library_kit = st.text_input(
-            "Library Kit (Optional):",
-            help="Name, version, and applicable cell or cycle numbers for the kit used to prepare libraries and load cells or chips for sequencing. If possible, include a part number, e.g. MiSeq Reagent Kit v3 (150-cycle), MS-102-3001.",
-        )
-        library_screen = st.text_input(
-            "Library Screen (Optional):",
-            help="Describe enrichment, screening, or normalization methods applied during amplification or library preparation, e.g. size selection 390bp, diluted to 1 ng DNA/sample.",
-        )
-        nucl_acid_amp = st.text_input(
-            "Nucleic Acid Amplification (Optional):",
-            help="Link to a reference or kit that describes the enzymatic amplification of nucleic acids.",
-        )
-        nucl_acid_ext = st.text_input(
-            "Nucleic Acid Extraction (Optional):",
-            help="Link to a reference or kit that describes the recovery of nucleic acids from the sample.",
-        )
-        nucl_acid_ext_date = st.date_input(
-            "Nucleic Acid Extraction Date (Optional):",
-            value=None,
-            help="The date of the nucleoacide extraction.",
-        )
-        nucl_acid_amp_date = st.date_input(
-            "Nucleic Acid Amplification Date (Optional):",
-            value=None,
-            help="The date of the nucleoacide amplification.",
-        )
-        pcr_cond = st.text_input(
-            "PCR Conditions (Optional):",
-            help="The method/conditions for PCR, List PCR cycles used to amplify the target.",
-        )
-        seq_center = st.text_input(
-            "Sequencing Center (Optional):",
-            help="Name of facility where sequencing was performed (lab, core facility, or company).",
-        )
-        seq_date = st.date_input(
-            "Sequencing Date (Optional):",
-            value=None,
-            help="The date of sequencing, should be YYYY-MM or YYYY-MM-DD.",
-        )
-
-        # Store the values in seq_info
-        self.seq_info["sequencing_info_name"] = self.seq_info["sequencing_info_name"]
-        self.seq_info["seq_platform"] = seq_platform
-        self.seq_info["seq_instrument_model"] = seq_instrument_model
-
-        # Only store date values if they are not None
-        if seq_date is not None:
-            self.seq_info["seq_date"] = str(seq_date)
-        if nucl_acid_ext_date is not None:
-            self.seq_info["nucl_acid_ext_date"] = str(nucl_acid_ext_date)
-        if nucl_acid_amp_date is not None:
-            self.seq_info["nucl_acid_amp_date"] = str(nucl_acid_amp_date)
-
-        self.seq_info["nucl_acid_ext"] = nucl_acid_ext
-        self.seq_info["nucl_acid_amp"] = nucl_acid_amp
-        self.seq_info["pcr_cond"] = pcr_cond
-        self.seq_info["library_screen"] = library_screen
-        self.seq_info["library_layout"] = library_layout
-        self.seq_info["library_kit"] = library_kit
-        self.seq_info["library_strategy"] = library_strategy
-        self.seq_info["library_source"] = library_source
-        self.seq_info["library_selection"] = library_selection
-        self.seq_info["seq_center"] = seq_center
-
-    def add_additional_fields(self):
-        st.title("Add Additional Fields")
-
-        # Add a toggle to enable additional fields
-        add_fields_toggle = st.checkbox("Add Additional Fields")
-
-        if add_fields_toggle:
-            st.write("Fill in the additional fields below:")
-            number_inputs = st.number_input(
-                "Number of additional inputs", min_value=0, value=1
-            )
-            # Inputs for names and values
-            cols = st.columns(2)
-            with cols[0]:
-                field_names = [
-                    st.text_input(f"Field Name {i}", key=f"field_name_{i}")
-                    for i in range(number_inputs)
-                ]
-            with cols[1]:
-                field_values = [
-                    st.text_input(f"Value {i}", key=f"value_{i}")
-                    for i in range(number_inputs)
-                ]
-
-            # Save the additional fields
-            for i in range(number_inputs):
-                self.seq_info[field_names[i]] = field_values[i]
-
-    def transform_and_save_data(self):
-        seq_info = self.seq_info
-        st.subheader("Save Data")
-        if st.button("Save Data"):
-            # Only require the essential fields - all others are optional
-            sequencing_info = []
-            if all(
-                [
-                    seq_info.get("sequencing_info_name"),
-                    seq_info.get("seq_platform"),
-                    seq_info.get("seq_instrument_model"),
-                    seq_info.get("library_layout"),
-                    seq_info.get("library_strategy"),
-                    seq_info.get("library_source"),
-                    seq_info.get("library_selection"),
-                ]
-            ):
-                sequencing_info.append(seq_info)
-                # Remove empty optional fields
-                sequencing_info = [
-                    {k: v for k, v in info.items() if v is not None and v != ""}
-                    for info in sequencing_info
-                ]
-                st.session_state["seq_info"] = sequencing_info
-                st.success("Sequencing information saved successfully!")
-
-    def display_info(self):
-        if "seq_info" in st.session_state:
-            st.subheader("Preview Sequencing Information")
-            preview_toggle = st.toggle("Preview Sequencing Information")
-            if preview_toggle:
-                st.write("Current Sequencing Information:")
-                st.json(st.session_state["seq_info"])
-
-    def run(self):
-        self.add_sequencing_information()
-        self.add_additional_fields()
-        self.transform_and_save_data()
-        self.display_info()
-
-
-# Initialize and run the page
-if __name__ == "__main__":
-    render_header()
-    st.subheader("Sequencing Information", divider="gray")
-    app = SeqInfoPage()
-    app.run()
-`,
-                
-                "pages/7_Microhaplotype_Information.py": `import streamlit as st
 from src.field_matcher import load_data
 from src.transformer import transform_mhap_info
-from src.format_page import render_header
 from src.utils import load_schema
 
-session_name = "mhap_data"
+session_name = "microhaplotype_info"
 title = "microhaplotype information"
 
 
-# TODO: add masking delim box
-# TODO: add additional haplotype detected columns to be specified.
-class MhapPage:
+class MicrohaplotypeInfoPage:
     def __init__(
         self,
         required_fields,
@@ -442,39 +259,85 @@ class MhapPage:
         self.optional_fields = optional_fields
         self.optional_alternate_fields = optional_alternate_fields
 
-    def bioinfo_id_input(self):
+    def bioinfo_id_input(self, df):
+        """Get bioinformatics ID from user - either from a column or as a string."""
         st.subheader("Bioinformatics ID")
-        return st.text_input(
-            "Enter bioinfo ID:", help="Identifier for the bioinformatics run."
-        )
+
+        if df is not None and not df.empty:
+            # Option to select from column or enter manually
+            input_method = st.radio(
+                "Select bioinformatics ID source:",
+                ["Select from column", "Enter manually"],
+                horizontal=True,
+                key="bioinfo_id_method",
+            )
+
+            if input_method == "Select from column":
+                column = st.selectbox(
+                    "Select column containing bioinformatics ID:",
+                    df.columns.tolist(),
+                    key="bioinfo_id_column",
+                )
+                return column
+            else:
+                return st.text_input(
+                    "Enter bioinformatics ID:",
+                    help="Identifier for the bioinformatics run.",
+                    key="bioinfo_id_text",
+                )
+        else:
+            # No file uploaded, only allow manual entry
+            return st.text_input(
+                "Enter bioinformatics ID:",
+                help="Identifier for the bioinformatics run.",
+                key="bioinfo_id_text",
+            )
 
     def transform_and_save_data(
         self,
         df,
-        bioinfo_ID,
-        field_mapping,
+        bioinfo_id,
+        mapped_fields,
         selected_optional_fields,
         selected_additional_fields,
     ):
-        if bioinfo_ID and field_mapping and selected_optional_fields != "Error":
-            st.subheader("Transform Data")
-            if st.button("Transform Data"):
+        st.subheader("Transform Data")
+        if st.button("Transform Data"):
+            # Validate required fields
+            errors = []
+
+            if not bioinfo_id or (
+                isinstance(bioinfo_id, str) and not bioinfo_id.strip()
+            ):
+                errors.append("Bioinformatics ID is required.")
+
+            if not mapped_fields:
+                errors.append(
+                    "Field mapping is required. Please upload a file and map the fields."
+                )
+
+            if selected_optional_fields == "Error":
+                errors.append("There was an error with the optional fields selection.")
+
+            if errors:
+                for error in errors:
+                    st.error(error)
+            else:
+                # All validations passed, proceed with transformation
                 transformed_df = transform_mhap_info(
-                    df,
-                    bioinfo_ID,
-                    field_mapping,
+                    df.astype(object) if df is not None else None,
+                    bioinfo_id,
+                    mapped_fields,
                     selected_optional_fields,
                     selected_additional_fields,
                 )
                 st.session_state[session_name] = transformed_df
                 try:
-                    st.success(
-                        f"Microhaplotype Information from Bioinformatics Run '{bioinfo_ID}' has been saved!"
-                    )
+                    st.success("Microhaplotype Information has been saved!")
                 except Exception as e:
                     st.error(f"Error saving Microhaplotype Information: {e}")
 
-    def display_panel_info(self, toggle_text):
+    def display_microhaplotype_info(self, toggle_text):
         if session_name in st.session_state:
             preview = st.toggle(toggle_text)
             if preview:
@@ -482,7 +345,6 @@ class MhapPage:
                 st.json(st.session_state[session_name])
 
     def run(self):
-        # File upload
         (
             df,
             mapped_fields,
@@ -494,30 +356,29 @@ class MhapPage:
             optional_fields,
             optional_alternate_fields,
         )
-        # Enter bioinformatics ID
-        bioinfo_ID = self.bioinfo_id_input()
+        # Get bioinformatics ID input
+        bioinfo_id = self.bioinfo_id_input(df)
+        # Transform and save data
         self.transform_and_save_data(
             df,
-            bioinfo_ID,
+            bioinfo_id,
             mapped_fields,
             selected_optional_fields,
             selected_additional_fields,
         )
         # Display current panel information
-        self.display_panel_info(f"Preview {title}")
+        self.display_microhaplotype_info(f"Preview {title}")
 
 
-# Initialize and run the app
 if __name__ == "__main__":
     render_header()
     st.subheader("Microhaplotype Information Converter", divider="gray")
     schema_fields = load_schema()
-
     required_fields = schema_fields["mhap_info"]["required"]
     required_alternate_fields = schema_fields["mhap_info"]["required_alternatives"]
     optional_fields = schema_fields["mhap_info"]["optional"]
     optional_alternate_fields = schema_fields["mhap_info"]["optional_alternatives"]
-    app = MhapPage(
+    app = MicrohaplotypeInfoPage(
         required_fields,
         required_alternate_fields,
         optional_fields,
@@ -527,7 +388,341 @@ if __name__ == "__main__":
         st.success(
             f"Your {title} has already been saved during a" " previous run of this page"
         )
-        app.display_panel_info(f"Preview previously stored {title}")
+        app.display_microhaplotype_info(f"Preview previously stored {title}")
+    app.run()
+`,
+                
+                "pages/5_Sequencing_Information.py": `import streamlit as st
+import pandas as pd
+from src.format_page import render_header
+
+
+class SeqInfoPage:
+    def __init__(self):
+        self._initialize_session_state()
+
+    def _initialize_session_state(self):
+        """Initialize session state variables if they don't exist."""
+        if "seq_info" not in st.session_state:
+            st.session_state["seq_info"] = []
+
+    def _show_runs_count(self):
+        """Show current sequencing runs count."""
+        if st.session_state.get("seq_info"):
+            st.info(f"Current sequencing runs: {len(st.session_state['seq_info'])}")
+            st.info(
+                "To add another sequencing run, enter the information above and click the 'Add Sequencing Information' button again."
+            )
+
+    def _get_sequencing_info_name_input(self):
+        """Get sequencing information name - either from library_sample_info or manual entry."""
+        # Get unique sequencing info names from library_sample_info if available
+        suggested_names = []
+        if "library_sample_info" in st.session_state:
+            library_sample_info = st.session_state["library_sample_info"]
+            try:
+                # Handle DataFrame
+                if isinstance(library_sample_info, pd.DataFrame):
+                    if "sequencing_info_name" in library_sample_info.columns:
+                        suggested_names = sorted(
+                            library_sample_info["sequencing_info_name"]
+                            .dropna()
+                            .unique()
+                            .tolist()
+                        )
+                # Handle dict
+                elif isinstance(library_sample_info, dict):
+                    if "sequencing_info_name" in library_sample_info:
+                        seq_data = library_sample_info["sequencing_info_name"]
+                        if isinstance(seq_data, (list, pd.Series)):
+                            if isinstance(seq_data, pd.Series):
+                                suggested_names = sorted(
+                                    seq_data.dropna().unique().tolist()
+                                )
+                            else:
+                                suggested_names = sorted(
+                                    list(set([s for s in seq_data if s]))
+                                )
+                    else:
+                        # Check if values in dict are DataFrames with sequencing_info_name column
+                        for value in library_sample_info.values():
+                            if (
+                                isinstance(value, pd.DataFrame)
+                                and "sequencing_info_name" in value.columns
+                            ):
+                                suggested_names.extend(
+                                    value["sequencing_info_name"]
+                                    .dropna()
+                                    .unique()
+                                    .tolist()
+                                )
+                        suggested_names = sorted(list(set(suggested_names)))
+                # Handle list of dicts
+                elif isinstance(library_sample_info, list):
+                    seq_names = [
+                        item.get("sequencing_info_name")
+                        for item in library_sample_info
+                        if isinstance(item, dict) and item.get("sequencing_info_name")
+                    ]
+                    suggested_names = sorted(list(set(seq_names)))
+            except Exception:
+                # If extraction fails, just continue without suggestions
+                pass
+
+        # If we have suggested names, show a selectbox with option to enter custom
+        if suggested_names:
+            name_options = suggested_names + ["Enter custom name"]
+            selected_option = st.selectbox(
+                "Select sequencing information name or enter custom:",
+                name_options,
+                index=0,  # Default to first suggested name
+                help=f"Suggested names from library sample info: {', '.join(suggested_names)}",
+                key="seq_info_name_select",
+            )
+
+            if selected_option == "Enter custom name":
+                return st.text_input(
+                    "Enter sequencing information name:",
+                    help="A unique identifier for this sequencing info.",
+                    key="seq_info_name_text",
+                )
+            else:
+                return selected_option
+        else:
+            return st.text_input(
+                "Sequencing Information Name:",
+                help="A unique identifier for this sequencing info.",
+                key="seq_info_name_text",
+            )
+
+    def add_sequencing_information(self):
+        """Add sequencing information section - one run at a time."""
+        st.subheader("Add Sequencing Information")
+        self._show_runs_count()
+
+        seq_info = {}
+
+        seq_info["sequencing_info_name"] = self._get_sequencing_info_name_input()
+        seq_info["seq_platform"] = st.text_input(
+            "Sequencing Platform:",
+            help="The sequencing platform used to sequence the run, e.g. ILLUMINA, Illumina MiSeq.",
+            key="seq_platform",
+        )
+        seq_info["seq_instrument_model"] = st.text_input(
+            "Sequencing Instrument Model:",
+            help="The sequencing instrument model used to sequence the run, e.g. Illumina MiSeq.",
+            key="seq_instrument_model",
+        )
+        seq_info["library_layout"] = st.text_input(
+            "Library Layout:",
+            help="Specify the configuration of reads, e.g. paired-end.",
+            key="library_layout",
+        )
+        seq_info["library_strategy"] = st.text_input(
+            "Library Strategy:",
+            help="The strategy used to prepare the library, e.g. WGS, WES, amplicon, etc.",
+            key="library_strategy",
+        )
+        seq_info["library_source"] = st.text_input(
+            "Library Source:",
+            help="The source of the library, e.g. DNA, RNA, etc.",
+            key="library_source",
+        )
+        seq_info["library_selection"] = st.text_input(
+            "Library Selection:",
+            help="The selection method used to prepare the library, e.g. PCR, etc.",
+            key="library_selection",
+        )
+
+        # Optional fields
+        st.write("**Optional Fields:**")
+        seq_info["library_kit"] = st.text_input(
+            "Library Kit (Optional):",
+            help="Name, version, and applicable cell or cycle numbers for the kit used to prepare libraries and load cells or chips for sequencing.",
+            key="library_kit",
+        )
+        seq_info["library_screen"] = st.text_input(
+            "Library Screen (Optional):",
+            help="Describe enrichment, screening, or normalization methods applied during amplification or library preparation.",
+            key="library_screen",
+        )
+        seq_info["nucl_acid_amp"] = st.text_input(
+            "Nucleic Acid Amplification (Optional):",
+            help="Link to a reference or kit that describes the enzymatic amplification of nucleic acids.",
+            key="nucl_acid_amp",
+        )
+        seq_info["nucl_acid_ext"] = st.text_input(
+            "Nucleic Acid Extraction (Optional):",
+            help="Link to a reference or kit that describes the recovery of nucleic acids from the sample.",
+            key="nucl_acid_ext",
+        )
+        seq_info["nucl_acid_ext_date"] = st.date_input(
+            "Nucleic Acid Extraction Date (Optional):",
+            value=None,
+            help="The date of the nucleoacide extraction.",
+            key="nucl_acid_ext_date",
+        )
+        seq_info["nucl_acid_amp_date"] = st.date_input(
+            "Nucleic Acid Amplification Date (Optional):",
+            value=None,
+            help="The date of the nucleoacide amplification.",
+            key="nucl_acid_amp_date",
+        )
+        seq_info["pcr_cond"] = st.text_input(
+            "PCR Conditions (Optional):",
+            help="The method/conditions for PCR, List PCR cycles used to amplify the target.",
+            key="pcr_cond",
+        )
+        seq_info["seq_center"] = st.text_input(
+            "Sequencing Center (Optional):",
+            help="Name of facility where sequencing was performed (lab, core facility, or company).",
+            key="seq_center",
+        )
+        seq_info["seq_date"] = st.date_input(
+            "Sequencing Date (Optional):",
+            value=None,
+            help="The date of sequencing, should be YYYY-MM or YYYY-MM-DD.",
+            key="seq_date",
+        )
+
+        # Convert date objects to strings if they exist
+        if seq_info["seq_date"] is not None:
+            seq_info["seq_date"] = str(seq_info["seq_date"])
+        if seq_info["nucl_acid_ext_date"] is not None:
+            seq_info["nucl_acid_ext_date"] = str(seq_info["nucl_acid_ext_date"])
+        if seq_info["nucl_acid_amp_date"] is not None:
+            seq_info["nucl_acid_amp_date"] = str(seq_info["nucl_acid_amp_date"])
+
+        # Remove empty optional fields
+        cleaned_seq_info = {
+            k: v for k, v in seq_info.items() if v is not None and v != ""
+        }
+
+        return cleaned_seq_info
+
+    def _validate_sequencing_info(self, seq_info):
+        """Validate that all required fields are filled."""
+        errors = []
+        required_fields = [
+            "sequencing_info_name",
+            "seq_platform",
+            "seq_instrument_model",
+            "library_layout",
+            "library_strategy",
+            "library_source",
+            "library_selection",
+        ]
+
+        missing_fields = []
+        for field in required_fields:
+            if not seq_info.get(field) or not str(seq_info[field]).strip():
+                missing_fields.append(field)
+
+        if missing_fields:
+            if len(missing_fields) == 1:
+                errors.append(f"Missing required field: {missing_fields[0]}.")
+            else:
+                errors.append(f"Missing required fields: {', '.join(missing_fields)}.")
+
+        return len(errors) == 0, errors
+
+    def _save_sequencing_info(self, seq_info):
+        """Save sequencing information to session state."""
+        if st.button("Add Sequencing Information", key="save_seq_info"):
+            is_valid, errors = self._validate_sequencing_info(seq_info)
+
+            if not is_valid:
+                for error in errors:
+                    st.error(error)
+                st.warning("Please fill in all required fields before saving.")
+            else:
+                # Append to existing list in session state
+                st.session_state["seq_info"].append(seq_info)
+                st.success("Sequencing information saved successfully!")
+                st.info(f"Total sequencing runs: {len(st.session_state['seq_info'])}")
+                st.rerun()
+
+    def _remove_sequencing_runs(self):
+        """Allow removal of sequencing runs."""
+        if not st.session_state.get("seq_info"):
+            return
+
+        st.subheader("Remove Sequencing Runs")
+        remove_toggle = st.checkbox(
+            "Remove Existing Sequencing Runs",
+            help="Check this box to remove existing sequencing runs",
+            key="remove_seq_runs_checkbox",
+        )
+
+        if remove_toggle:
+            seq_info_list = st.session_state["seq_info"]
+            if not seq_info_list:
+                st.warning("No sequencing runs available to remove.")
+                return
+
+            # Create options for removal
+            remove_options = []
+            for idx, seq_info in enumerate(seq_info_list):
+                name = seq_info.get("sequencing_info_name", f"Run {idx+1}")
+                remove_options.append(f"{idx}: {name}")
+
+            selected_to_remove = st.multiselect(
+                "Select sequencing runs to remove:",
+                options=remove_options,
+                help="Select one or more sequencing runs to remove",
+                key="select_seq_runs_to_remove",
+            )
+
+            if selected_to_remove and st.button(
+                "Remove Selected Runs",
+                type="secondary",
+                key="remove_selected_seq_runs",
+            ):
+                # Extract indices and remove in reverse order
+                indices_to_remove = sorted(
+                    [int(opt.split(":")[0]) for opt in selected_to_remove], reverse=True
+                )
+
+                for idx in indices_to_remove:
+                    if 0 <= idx < len(st.session_state["seq_info"]):
+                        removed = st.session_state["seq_info"].pop(idx)
+                        name = removed.get("sequencing_info_name", f"Run {idx+1}")
+                        st.success(f"Removed sequencing run: {name}")
+
+                st.info(
+                    f"Remaining sequencing runs: {len(st.session_state['seq_info'])}"
+                )
+                st.rerun()
+
+    def display_info(self):
+        """Display preview of sequencing information."""
+        if st.session_state.get("seq_info"):
+            st.subheader("Preview Sequencing Information")
+            preview_toggle = st.toggle("Preview Sequencing Information")
+            if preview_toggle:
+                st.write(f"Total sequencing runs: {len(st.session_state['seq_info'])}")
+                for idx, seq_info in enumerate(st.session_state["seq_info"]):
+                    st.write(f"**Sequencing Run {idx+1}:**")
+                    st.json(seq_info)
+                    if idx < len(st.session_state["seq_info"]) - 1:
+                        st.write("---")
+
+    def run(self):
+        seq_info = self.add_sequencing_information()
+        self._save_sequencing_info(seq_info)
+        self._remove_sequencing_runs()
+        self.display_info()
+
+
+# Initialize and run the page
+if __name__ == "__main__":
+    render_header()
+    st.subheader("Sequencing Information", divider="gray")
+    app = SeqInfoPage()
+    if "seq_info" in st.session_state and st.session_state["seq_info"]:
+        st.success(
+            f"You have {len(st.session_state['seq_info'])} sequencing run(s) saved."
+        )
     app.run()
 `,
                 
@@ -535,11 +730,12 @@ if __name__ == "__main__":
 import pandas as pd
 from typing import Dict, List, Optional, Any
 from src.format_page import render_header
+from src.data_loader import load_csv
 
 # Constants
 REQUIRED_FIELDS = ["project_name", "project_description"]
-SEPARATOR_OPTIONS = {"newline": "\\n", ",": ",", "tab": "\\t"}
-SUPPORTED_FILE_TYPES = ["csv", "txt"]
+SEPARATOR_OPTIONS = {"newline": "\\\n", ",": ",", "tab": "\\\t"}
+SUPPORTED_FILE_TYPES = ["csv", "tsv", "txt", "xlsx", "xls"]
 
 
 class ProjectInfoPage:
@@ -581,26 +777,138 @@ class ProjectInfoPage:
         return []
 
     def _get_contributors_from_file(self) -> List[str]:
-        """Get contributors from uploaded file."""
+        """Get contributors from uploaded file.
+
+        Handles two cases:
+        1. Simple list: File with one name per line (with or without header)
+        2. Table: File with multiple columns, user selects which column to use
+        """
         uploaded_file = st.file_uploader(
-            "Upload a CSV or TXT", type=SUPPORTED_FILE_TYPES
+            "Upload a CSV, TSV, TXT, or Excel file", type=SUPPORTED_FILE_TYPES
         )
         if not uploaded_file:
             return []
 
         try:
-            if uploaded_file.name.endswith(".csv"):
-                df = pd.read_csv(uploaded_file)
-                column = st.selectbox("Choose column for contributors", df.columns)
-                return df[column].dropna().astype(str).tolist()
-            elif uploaded_file.name.endswith(".txt"):
-                text = uploaded_file.read().decode("utf-8")
-                return [c.strip() for c in text.splitlines() if c.strip()]
-        except Exception as e:
+            # Reset file pointer to beginning in case it was read before
+            uploaded_file.seek(0)
+
+            # For text-based files, check if it's a simple list first
+            # Excel files are always read with header assumption
+            is_text_file = uploaded_file.name.endswith((".csv", ".tsv", ".txt"))
+
+            if is_text_file:
+                # Read file content to check if it's a simple list (one value per line)
+                uploaded_file.seek(0)
+                content = uploaded_file.read().decode("utf-8")
+                lines = [line.strip() for line in content.split("\\\n") if line.strip()]
+
+                # Check if this looks like a simple list (each line has one value, no commas/tabs in most lines)
+                # Count lines that look like they have multiple values (contain comma or tab)
+                multi_value_lines = sum(
+                    1 for line in lines if "," in line or "\\\t" in line
+                )
+
+                # If less than 20% of lines have separators, treat as simple list
+                if lines and multi_value_lines / len(lines) < 0.2:
+                    # It's a simple list - create DataFrame from lines
+                    df = pd.DataFrame(lines, columns=["contributor"])
+                else:
+                    # It's likely a structured file - use load_csv with auto-detection
+                    uploaded_file.seek(0)
+                    df = load_csv(uploaded_file)
+
+                # For single-column files from auto-detection, check if first row was treated as header
+                if len(df.columns) == 1 and not df.empty:
+                    column_name = str(df.columns[0]).lower()
+                    # Common header words that indicate a proper header
+                    common_headers = {
+                        "name",
+                        "names",
+                        "contributor",
+                        "contributors",
+                        "person",
+                        "people",
+                        "author",
+                        "authors",
+                        "0",
+                        "1",
+                    }
+
+                    # If column name doesn't look like a header, try reading without header
+                    if column_name not in common_headers and not column_name.isdigit():
+                        uploaded_file.seek(0)
+                        try:
+                            df_no_header = pd.read_csv(
+                                uploaded_file, sep=None, engine="python", header=None
+                            )
+                            # Use no-header version if it has more rows (includes the "header" row as data)
+                            if len(df_no_header) > len(df):
+                                df = df_no_header
+                                df.columns = [
+                                    f"Column_{i+1}" for i in range(len(df.columns))
+                                ]
+                        except Exception:
+                            pass  # Keep the current df
+            else:
+                # For Excel files, use load_csv directly
+                df = load_csv(uploaded_file)
+
+            if df.empty:
+                st.warning("File appears to be empty or could not be parsed.")
+                return []
+
+            # If DataFrame has multiple columns, let user choose which column
+            if len(df.columns) > 1:
+                st.info(
+                    f"File contains {len(df.columns)} columns. Please select which column contains the contributor names."
+                )
+                column = st.selectbox(
+                    "Choose column for contributors",
+                    df.columns,
+                    key="contributor_column",
+                )
+                contributors = df[column].dropna().astype(str).tolist()
+                # Filter out empty strings
+                contributors = [c.strip() for c in contributors if c.strip()]
+
+                # Show a preview if there are contributors
+                if contributors:
+                    st.success(
+                        f"Found {len(contributors)} contributor(s) in the selected column."
+                    )
+                    with st.expander("Preview contributors"):
+                        st.write(contributors[:10])  # Show first 10
+                        if len(contributors) > 10:
+                            st.write(f"... and {len(contributors) - 10} more")
+
+                return contributors
+
+            # If single column, use it directly (handles simple list of names)
+            elif len(df.columns) == 1:
+                contributors = df.iloc[:, 0].dropna().astype(str).tolist()
+                # Filter out empty strings and strip whitespace
+                contributors = [c.strip() for c in contributors if c.strip()]
+
+                # Show a preview if there are contributors
+                if contributors:
+                    st.success(f"Found {len(contributors)} contributor(s) in the file.")
+                    with st.expander("Preview contributors"):
+                        st.write(contributors[:10])  # Show first 10
+                        if len(contributors) > 10:
+                            st.write(f"... and {len(contributors) - 10} more")
+
+                return contributors
+            else:
+                st.warning("File appears to be empty or could not be parsed.")
+                return []
+        except ValueError as e:
+            # Handle errors from load_csv (e.g., unsupported format, parsing errors)
             st.error(f"Error reading file: {e}")
             return []
-
-        return []
+        except Exception as e:
+            st.error(f"Unexpected error reading file: {e}")
+            return []
 
     def _get_contributors(self) -> List[str]:
         """Get project contributors from user input or file upload."""
@@ -696,14 +1004,14 @@ class ProjectInfoPage:
 
     def transform_and_save_data(self) -> None:
         """Save project data if validation passes."""
-        if not self._validate_required_fields():
-            st.warning(
-                "Please fill in all required fields (Project Name and Description)."
-            )
-            return
-
         st.subheader("Save Data")
         if st.button("Save Data", type="primary"):
+            if not self._validate_required_fields():
+                st.error(
+                    "Please fill in all required fields (Project Name and Description)."
+                )
+                return
+
             st.session_state["project_info"] = [self.project_info]
             st.success("Project information saved successfully!")
 
@@ -735,16 +1043,255 @@ if __name__ == "__main__":
     app.run()
 `,
                 
-                "pages/6_Bioinformatics_Information.py": `import streamlit as st
+                "pages/8_Read_Counts_per_Stage.py": `import streamlit as st
+from src.format_page import render_header
+from src.field_matcher import load_data
+from src.transformer import transform_read_counts_per_stage
+from src.utils import load_schema
+
+session_name = "read_counts_per_stage"
+title = "read counts per stage"
+
+
+class ReadCountsPerStagePage:
+    def __init__(
+        self,
+        raw_counts_required_fields,
+        raw_counts_required_alternate_fields,
+        reads_by_stage_required_fields,
+        reads_by_stage_required_alternate_fields,
+    ):
+        self.raw_counts_required_fields = raw_counts_required_fields
+        self.raw_counts_required_alternate_fields = raw_counts_required_alternate_fields
+        self.reads_by_stage_required_fields = reads_by_stage_required_fields
+        self.reads_by_stage_required_alternate_fields = (
+            reads_by_stage_required_alternate_fields
+        )
+
+    def transform_and_save_data(
+        self,
+        raw_counts_df,
+        reads_by_stage_df,
+        bioinfo_run_name,
+        raw_counts_field_mapping,
+        reads_by_stage_field_mapping,
+        raw_counts_selected_additional_fields,
+        reads_by_stage_selected_additional_fields,
+    ):
+        if (raw_counts_field_mapping != "Error") and (
+            reads_by_stage_field_mapping != "Error"
+        ):
+            st.subheader("Transform Data")
+            if st.button("Transform Data"):
+                transformed_df = transform_read_counts_per_stage(
+                    raw_counts_df,
+                    reads_by_stage_df,
+                    bioinfo_run_name,
+                    raw_counts_field_mapping,
+                    reads_by_stage_field_mapping,
+                    raw_counts_selected_additional_fields,
+                    reads_by_stage_selected_additional_fields,
+                )
+                st.session_state[session_name] = transformed_df
+                try:
+                    st.success("Specimen Information has been saved!")
+                except Exception as e:
+                    st.error(f"Error saving Specimen Information: {e}")
+
+    def display_panel_info(self, toggle_text):
+        if session_name in st.session_state:
+            preview = st.toggle(toggle_text)
+            if preview:
+                st.write(f"Current {title}:")
+                st.json(st.session_state[session_name])
+
+    def run(self):
+        st.subheader("Raw Read Counts per Sample", divider="gray")
+        (
+            raw_counts_df,
+            raw_counts_mapped_fields,
+            selected_optional_fields,
+            raw_counts_selected_additional_fields,
+        ) = load_data(
+            self.raw_counts_required_fields,
+            self.raw_counts_required_alternate_fields,
+            [],
+            [],
+            key_suffix="raw_counts",
+        )
+        st.subheader("Read Counts per Stage", divider="gray")
+        (
+            reads_by_stage_df,
+            reads_by_stage_mapped_fields,
+            selected_optional_fields,
+            reads_by_stage_selected_additional_fields,
+        ) = load_data(
+            self.reads_by_stage_required_fields,
+            self.reads_by_stage_required_alternate_fields,
+            [],
+            [],
+            key_suffix="reads_by_stage",
+        )
+        bioinfo_run_name = st.text_input(
+            "Bioinformatics Run Name:", help="The name of the bioinformatics run."
+        )
+        # Transform and save data
+        if raw_counts_mapped_fields and reads_by_stage_mapped_fields:
+            self.transform_and_save_data(
+                raw_counts_df,
+                reads_by_stage_df,
+                bioinfo_run_name,
+                raw_counts_mapped_fields,
+                reads_by_stage_mapped_fields,
+                raw_counts_selected_additional_fields,
+                reads_by_stage_selected_additional_fields,
+            )
+        # Display current panel information
+        self.display_panel_info(f"Preview {title}")
+
+
+if __name__ == "__main__":
+    render_header()
+    schema_fields = load_schema()
+    raw_counts_required_fields = schema_fields["read_counts_perstage"]["raw_counts"][
+        "required"
+    ]
+    raw_counts_required_alternate_fields = schema_fields["read_counts_perstage"][
+        "raw_counts"
+    ]["required_alternatives"]
+    reads_by_stage_required_fields = schema_fields["read_counts_perstage"][
+        "reads_by_stage"
+    ]["required"]
+    reads_by_stage_required_alternate_fields = schema_fields["read_counts_perstage"][
+        "reads_by_stage"
+    ]["required_alternatives"]
+    app = ReadCountsPerStagePage(
+        raw_counts_required_fields,
+        raw_counts_required_alternate_fields,
+        reads_by_stage_required_fields,
+        reads_by_stage_required_alternate_fields,
+    )
+    if session_name in st.session_state:
+        st.success(
+            f"Your {title} has already been saved during a" " previous run of this page"
+        )
+        app.display_panel_info(f"Preview previously stored {title}")
+    app.run()
+`,
+                
+                "pages/7_Bioinformatics_Information.py": `import streamlit as st
 from src.format_page import render_header
 
 
-class BioInfoPage:
-    # Constants
+class ValidationHelper:
+    """Helper class for validation logic."""
+
     REQUIRED_FIELDS = ["program", "program_version"]
 
+    @staticmethod
+    def check_method_required_fields(method_dict, fields=None):
+        """Check if required fields are present and not empty."""
+        if fields is None:
+            fields = ValidationHelper.REQUIRED_FIELDS
+
+        missing_fields = []
+        for field in fields:
+            if (
+                field not in method_dict.keys()
+                or not method_dict[field]
+                or method_dict[field].strip() == ""
+            ):
+                missing_fields.append(field)
+
+        return (True, []) if not missing_fields else (False, missing_fields)
+
+    @staticmethod
+    def validate_runs(bioinfo_run_vals, methods_list):
+        """Validate bioinformatics runs."""
+        if not methods_list:
+            return False, [
+                "No bioinformatics methods available. Please add at least one bioinformatics method before saving run information."
+            ]
+
+        missing_names = []
+        missing_methods = []
+        invalid_methods = []
+        methods_count = len(methods_list)
+
+        for i, run_val in enumerate(bioinfo_run_vals):
+            run_name = run_val.get("bioinformatics_run_name", "")
+            if not run_name or not run_name.strip():
+                missing_names.append(i + 1)
+
+            methods_id = run_val.get("bioinformatics_methods_id")
+            if methods_id is None:
+                missing_methods.append(i + 1)
+            elif not (0 <= methods_id < methods_count):
+                invalid_methods.append(i + 1)
+
+        errors = []
+        if missing_names:
+            if len(missing_names) == 1:
+                errors.append(f"Run {missing_names[0]} is missing a required run name.")
+            else:
+                errors.append(
+                    f"Runs {', '.join(map(str, missing_names))} are missing required run names."
+                )
+
+        if missing_methods:
+            if len(missing_methods) == 1:
+                errors.append(
+                    f"Run {missing_methods[0]} is missing a required bioinformatics methods ID."
+                )
+            else:
+                errors.append(
+                    f"Runs {', '.join(map(str, missing_methods))} are missing required bioinformatics methods IDs."
+                )
+
+        if invalid_methods:
+            if len(invalid_methods) == 1:
+                errors.append(
+                    f"Run {invalid_methods[0]} has an invalid bioinformatics methods ID."
+                )
+            else:
+                errors.append(
+                    f"Runs {', '.join(map(str, invalid_methods))} have invalid bioinformatics methods IDs."
+                )
+
+        return len(errors) == 0, errors
+
+    @staticmethod
+    def validate_methods(bioinfo_method_infos):
+        """Validate all bioinformatics methods."""
+        methods_validation = {}
+        all_methods_valid = True
+        method_count = 0
+
+        if "methods" in bioinfo_method_infos.keys():
+            for method_data in bioinfo_method_infos["methods"]:
+                (
+                    method_valid,
+                    method_missing,
+                ) = ValidationHelper.check_method_required_fields(method_data)
+                methods_validation[method_count] = (method_valid, method_missing)
+                method_count += 1
+                if not method_valid:
+                    all_methods_valid = False
+
+        if method_count == 0:
+            all_methods_valid = False
+            methods_validation["_no_methods"] = (
+                False,
+                ["At least one bioinformatics method is required"],
+            )
+
+        return methods_validation, all_methods_valid
+
+
+class BioinformaticsRunManager:
+    """Manages bioinformatics run information."""
+
     def __init__(self):
-        self.bioinfo_method_infos = {}
         self._initialize_session_state()
 
     def _initialize_session_state(self):
@@ -775,27 +1322,54 @@ class BioInfoPage:
         methods_count = len(st.session_state["bioinfo_methods_list"])
         key = (
             f"method_select_{i}_{methods_count}"
-            if i
+            if i is not None
             else f"method_select_{methods_count}"
         )
 
         selected_option = st.selectbox(
             "Bioinformatics Methods ID:",
             options=options,
-            help="Select the bioinformatics method to use for this run.",
+            help="Select the bioinformatics method to use for this run (required).",
             key=key,
         )
         return int(selected_option.split(":")[0])
 
-    def enter_bioinfo_run_vals(self, i=None):
+    def _get_unique_bioinfo_run_names(self):
+        """Extract unique bioinformatics run names from microhaplotype_info."""
+        unique_names = []
+        if "microhaplotype_info" in st.session_state:
+            microhaplotype_info = st.session_state["microhaplotype_info"]
+            try:
+                # microhaplotype_info is a dict with "detected_microhaplotypes" key
+                if isinstance(microhaplotype_info, dict):
+                    if "detected_microhaplotypes" in microhaplotype_info:
+                        detected_mhaps = microhaplotype_info["detected_microhaplotypes"]
+                        if isinstance(detected_mhaps, list):
+                            # Extract bioinformatics_run_name from each dict in the list
+                            run_names = [
+                                item.get("bioinformatics_run_name")
+                                for item in detected_mhaps
+                                if isinstance(item, dict)
+                                and item.get("bioinformatics_run_name")
+                            ]
+                            unique_names = sorted(list(set(run_names)))
+            except Exception:
+                # If extraction fails, just continue without pre-filling
+                pass
+        return unique_names
+
+    def _enter_run_values(self, i=None, prefill_name=None):
         """Enter bioinformatics run values."""
         cols1 = st.columns(3)
 
         with cols1[0]:
+            # Pre-fill with suggested name if provided
+            default_value = prefill_name if prefill_name else ""
             bioinfo_run_name = st.text_input(
                 "Bioinformatics Run Name:",
-                help="Name of the bioinformatics run.",
-                key=f"run_name_{i}" if i else None,
+                value=default_value,
+                help="Name of the bioinformatics run (required).",
+                key=f"run_name_{i}" if i is not None else None,
             )
         with cols1[1]:
             bioinfo_methods_id = self._get_method_selection(i)
@@ -805,7 +1379,9 @@ class BioInfoPage:
                 "Bioinformatics Run Date (Optional):",
                 value=None,
                 help="The date the bioinformatics pipeline was run.",
+                key=f"run_date_{i}" if i is not None else None,
             )
+
         bioinfo_run_dict = {
             "bioinformatics_run_name": bioinfo_run_name,
             "bioinformatics_methods_id": bioinfo_methods_id,
@@ -815,52 +1391,90 @@ class BioInfoPage:
 
         return bioinfo_run_dict
 
-    def _save_bioinfo_runs(self, bioinfo_run_vals):
+    def _save_runs(self, bioinfo_run_vals):
         """Save bioinformatics run values to session state."""
         if st.button("Save Bioinformatics Run Info", key="save_bioinfo_run_vals"):
-            st.session_state["bioinfo_run_infos"] = bioinfo_run_vals
-            st.success("Bioinformatics run values saved successfully!")
-
-    def _preview_bioinfo_runs(self):
-        """Show preview of bioinformatics run values."""
-        if "bioinfo_run_infos" in st.session_state:
-            preview_toggle = st.toggle(
-                "Preview Bioinformatics Run Values", key="preview_bioinfo_run_vals"
+            methods_list = st.session_state.get("bioinfo_methods_list", [])
+            is_valid, errors = ValidationHelper.validate_runs(
+                bioinfo_run_vals, methods_list
             )
-            if preview_toggle:
-                st.write("Current Bioinformatics Run Values:")
-                st.json(st.session_state["bioinfo_run_infos"])
 
-    def add_bioinfo_run_vals(self):
+            if not is_valid:
+                for error in errors:
+                    st.error(error)
+                if len(errors) > 1 or "No bioinformatics methods" not in errors[0]:
+                    st.warning("Please fill in all required fields before saving.")
+            else:
+                st.session_state["bioinfo_run_infos"] = bioinfo_run_vals
+                st.success("Bioinformatics run values saved successfully!")
+
+    def add_runs(self):
         """Add bioinformatics run values section."""
+        # Get unique bioinformatics run names from microhaplotype_info
+        unique_run_names = self._get_unique_bioinfo_run_names()
+
+        # Set default number of runs based on unique names found
+        default_num_runs = len(unique_run_names) if unique_run_names else 1
+
+        if unique_run_names:
+            st.info(
+                f"Found {len(unique_run_names)} unique bioinformatics run name(s) in microhaplotype data. "
+                f"Pre-filled below. You can modify the number of runs or names as needed."
+            )
+
         number_inputs = st.number_input(
             "Number of bioinformatics runs",
             min_value=0,
-            value=1,
+            value=default_num_runs,
             key="num_bioinfo_runs",
         )
+
+        # Pre-fill run names from unique values
         bioinfo_run_vals = [
-            self.enter_bioinfo_run_vals(i=i) for i in range(number_inputs)
+            self._enter_run_values(
+                i=i,
+                prefill_name=unique_run_names[i] if i < len(unique_run_names) else None,
+            )
+            for i in range(number_inputs)
         ]
 
-        self._save_bioinfo_runs(bioinfo_run_vals)
+        self._save_runs(bioinfo_run_vals)
         return bioinfo_run_vals
+
+    def preview_runs(self):
+        """Preview bioinformatics run information."""
+        if "bioinfo_run_infos" in st.session_state:
+            preview_toggle = st.toggle(
+                "Preview Bioinformatics Run Information",
+                key="preview_bioinfo_runs_toggle",
+            )
+            if preview_toggle:
+                st.write("Current Bioinformatics Run Information:")
+                st.json(st.session_state["bioinfo_run_infos"])
+
+
+class BioinformaticsMethodManager:
+    """Manages bioinformatics method information."""
+
+    def __init__(self):
+        self.bioinfo_method_infos = {}
 
     def _show_methods_count(self):
         """Show current methods count."""
-        if st.session_state["bioinfo_methods_list"]:
+        if st.session_state.get("bioinfo_methods_list"):
             st.info(f"Current methods: {len(st.session_state['bioinfo_methods_list'])}")
 
     def _get_method_name_input(self):
-        """Get optional method name input."""
-        return st.text_input(
-            "Bioinformatics Method Name (Optional):",
-            help="A unique identifier for this bioinformatics method.",
+        """Get optional pipeline name input."""
+        st.subheader("Pipeline (Optional)")
+        st.write(
+            "Putting in the pipeline information is optional. If you add information you must add both program and program version."
         )
+        pipeline_dict = self._create_method_step_input_fields(0)
+        return pipeline_dict["program"], pipeline_dict
 
     def _create_method_step_input_fields(self, method):
         """Create input fields for a bioinformatics method."""
-        # First row of columns
         cols1 = st.columns(2)
         with cols1[0]:
             program = st.text_input(
@@ -875,7 +1489,6 @@ class BioInfoPage:
                 help="Version number of the program (e.g., '1.16.0', '11.0.667')",
             )
 
-        # Second row of columns
         cols2 = st.columns(2)
         with cols2[0]:
             program_description = st.text_input(
@@ -890,7 +1503,6 @@ class BioInfoPage:
                 help="Any additional command-line arguments or parameters used",
             )
 
-        # Third row for program URL (full width)
         program_url = st.text_input(
             "program url (optional)",
             key=f"{method}_program_url",
@@ -912,7 +1524,6 @@ class BioInfoPage:
             "program_version": inputs["program_version"],
         }
 
-        # Add optional fields only if they have values
         for field in ["additional_argument", "program_description", "program_url"]:
             if inputs[field] and inputs[field].strip():
                 step_dict[field] = inputs[field]
@@ -936,11 +1547,11 @@ class BioInfoPage:
 
     def _add_custom_fields_to_dict(self, method_dict, field_names, field_values):
         """Add custom fields to the method dictionary."""
-        for i, (name, value) in enumerate(zip(field_names, field_values)):
-            if name and name.strip():  # Only add if field name is not empty
+        for name, value in zip(field_names, field_values):
+            if name and name.strip():
                 method_dict[name] = value
 
-    def add_additional_fields(self, method, method_dict):
+    def _add_additional_fields(self, method, method_dict):
         """Add additional custom fields to a method."""
         additional_fields_toggle = st.toggle(
             f"Add additional fields to {method}", key=f"{method}_toggle"
@@ -962,16 +1573,14 @@ class BioInfoPage:
 
         return method_dict
 
-    def enter_bioinfo_method_step_info(self, method):
+    def _enter_method_step_info(self, method):
         """Enter bioinformatics method values."""
         inputs = self._create_method_step_input_fields(method)
         method_dict = self._build_method_step_dict(method, inputs)
-
-        # Add user specified additional fields
-        method_dict = self.add_additional_fields(method, method_dict)
+        method_dict = self._add_additional_fields(method, method_dict)
         return method_dict
 
-    def _create_bioinformatics_methods_steps(self):
+    def _create_methods_steps(self):
         """Create the bioinformatics methods section with at least one required."""
         st.subheader("Bioinformatics Method Steps")
         st.write(
@@ -989,29 +1598,23 @@ class BioInfoPage:
         method_steps = []
         for i in range(number_of_steps):
             st.write(f"**Step {i+1}**")
-
-            method_data = self.enter_bioinfo_method_step_info(f"method_{i}")
+            method_data = self._enter_method_step_info(f"method_{i}")
             method_steps.append(method_data)
 
         return method_steps
 
-    def _build_bioinfo_infos_method_dict(self, method_name, methods):
+    def _build_method_dict(self, method_name, methods):
         """Build the bioinfo_infos dictionary."""
-        # bioinfo_infos = methods.copy()
         method_dict = {"methods": methods}
-        # Only add bioinformatics_method_name if it's populated
         if method_name and method_name.strip():
             method_dict["bioinformatics_method_name"] = method_name
-
         return method_dict
 
-    def add_bioinfo_methods_information(self):
+    def add_methods_information(self):
         """Add bioinformatics method information section."""
         st.subheader("Add Bioinformatics Method Information", divider="gray")
-
         self._show_methods_count()
 
-        # Toggle to show/hide the add method form
         add_method_toggle = st.checkbox(
             "Add New Bioinformatics Method",
             help="Check this box to add a new bioinformatics method",
@@ -1019,60 +1622,13 @@ class BioInfoPage:
         )
 
         if add_method_toggle:
-            method_name = self._get_method_name_input()
-            method_steps = self._create_bioinformatics_methods_steps()
-
-            self.bioinfo_method_infos = self._build_bioinfo_infos_method_dict(
+            method_name, pipeline_dict = self._get_method_name_input()
+            method_steps = self._create_methods_steps()
+            self.bioinfo_method_infos = self._build_method_dict(
                 method_name, method_steps
             )
         else:
-            # Set empty structure when not adding methods
             self.bioinfo_method_infos = {}
-
-    def check_method_required_fields(self, method_dict, fields=None):
-        """Check if required fields are present and not empty."""
-        if fields is None:
-            fields = self.REQUIRED_FIELDS
-
-        missing_fields = []
-        for field in fields:
-            if (
-                field not in method_dict.keys()
-                or not method_dict[field]
-                or method_dict[field].strip() == ""
-            ):
-                missing_fields.append(field)
-
-        return (True, []) if not missing_fields else (False, missing_fields)
-
-    def _validate_bioinformatics_methods(self, bioinfo_method_infos):
-        """Validate all bioinformatics methods."""
-        methods_validation = {}
-        all_methods_valid = True
-
-        # Check that at least one method is provided
-        method_count = 0
-        if "methods" in bioinfo_method_infos.keys():
-            for method_data in bioinfo_method_infos["methods"]:
-                # if method_name != "bioinformatics_method_name" and isinstance(
-                #     method_data, dict
-                # ):
-                method_valid, method_missing = self.check_method_required_fields(
-                    method_data
-                )
-                methods_validation[method_count] = (method_valid, method_missing)
-                method_count += 1
-                if not method_valid:
-                    all_methods_valid = False
-
-        if method_count == 0:
-            all_methods_valid = False
-            methods_validation["_no_methods"] = (
-                False,
-                ["At least one bioinformatics method is required"],
-            )
-
-        return methods_validation, all_methods_valid
 
     def _save_valid_method(self, bioinfo_method_infos):
         """Save a valid bioinformatics method."""
@@ -1093,28 +1649,21 @@ class BioInfoPage:
                     st.error(
                         f"Step '{method_id+1}' is missing required fields: {', '.join(method_missing)}"
                     )
-
         st.warning("Please fill in all required fields before saving.")
 
-    def transform_and_save_data(self):
+    def save_method(self):
         """Transform and save bioinformatics method data."""
         bioinfo_method_infos = self.bioinfo_method_infos
 
-        # Only show save button if there's data to save
-        # TODO: make this button only appear when add method toggle is on
         if st.button("Save Bioinformatics Method", key="save_bioinfo_method_infos"):
-            # Validate all methods
-            (
-                methods_validation,
-                all_methods_valid,
-            ) = self._validate_bioinformatics_methods(bioinfo_method_infos)
+            methods_validation, all_methods_valid = ValidationHelper.validate_methods(
+                bioinfo_method_infos
+            )
 
             if all_methods_valid:
                 self._save_valid_method(bioinfo_method_infos)
             else:
                 self._display_validation_errors(methods_validation)
-
-        self._remove_methods_section()
 
     def _create_remove_options(self):
         """Create options for method removal."""
@@ -1133,9 +1682,7 @@ class BioInfoPage:
         for option in selected_options:
             idx = int(option.split(":")[0])
             indices_to_remove.append(idx)
-        return sorted(
-            indices_to_remove, reverse=True
-        )  # Sort descending for safe removal
+        return sorted(indices_to_remove, reverse=True)
 
     def _update_run_info_indices(self, removed_indices):
         """Update bioinformatics run info indices after method removal."""
@@ -1149,32 +1696,24 @@ class BioInfoPage:
             current_method_id = run_info.get("bioinformatics_methods_id", 0)
             run_name = run_info.get("bioinformatics_run_name", f"Run {i+1}")
 
-            # Check if this run was using one of the removed methods
             if current_method_id in removed_indices:
                 affected_runs.append(run_name)
 
-            # Count how many removed indices are less than the current method ID
-            # This tells us how much to subtract from the current method ID
             adjustment = sum(
                 1 for removed_idx in removed_indices if removed_idx < current_method_id
             )
 
-            # Update the method ID
             new_method_id = current_method_id - adjustment
-
-            # If the new method ID is out of bounds, set it to a valid value
             max_method_id = len(st.session_state["bioinfo_methods_list"]) - 1
             if new_method_id > max_method_id:
                 new_method_id = max(0, max_method_id)
 
-            # Update the run info
             updated_run_info = run_info.copy()
             updated_run_info["bioinformatics_methods_id"] = new_method_id
             updated_run_infos.append(updated_run_info)
 
         st.session_state["bioinfo_run_infos"] = updated_run_infos
 
-        # Show warning if any runs were affected
         if affected_runs:
             st.warning(
                 f"Updated method references for affected runs: {', '.join(affected_runs)}"
@@ -1182,7 +1721,6 @@ class BioInfoPage:
 
     def _remove_selected_methods(self, indices_to_remove):
         """Remove methods at specified indices."""
-        # Store original indices before removal for updating run info
         original_indices = sorted(indices_to_remove)
 
         for idx in indices_to_remove:
@@ -1193,15 +1731,13 @@ class BioInfoPage:
                 )
                 st.success(f"Removed method: {method_name}")
 
-        # Update run info indices after method removal
         self._update_run_info_indices(original_indices)
-
         st.info(f"Remaining methods: {len(st.session_state['bioinfo_methods_list'])}")
         st.rerun()
 
-    def _remove_methods_section(self):
+    def remove_methods_section(self):
         """Display the remove methods section."""
-        if not st.session_state["bioinfo_methods_list"]:
+        if not st.session_state.get("bioinfo_methods_list"):
             return
 
         st.subheader("Remove Methods")
@@ -1234,18 +1770,7 @@ class BioInfoPage:
             else:
                 st.warning("No methods available to remove.")
 
-    def _preview_bioinfo_runs(self):
-        """Preview bioinformatics run information."""
-        if "bioinfo_run_infos" in st.session_state:
-            preview_toggle = st.toggle(
-                "Preview Bioinformatics Run Information",
-                key="preview_bioinfo_runs_toggle",
-            )
-            if preview_toggle:
-                st.write("Current Bioinformatics Run Information:")
-                st.json(st.session_state["bioinfo_run_infos"])
-
-    def _preview_bioinfo_methods(self):
+    def preview_methods(self):
         """Preview bioinformatics methods list."""
         if (
             "bioinfo_methods_list" in st.session_state
@@ -1262,6 +1787,14 @@ class BioInfoPage:
                     st.json(method)
                     st.write("---")
 
+
+class BioInfoPage:
+    """Main page class that coordinates bioinformatics information management."""
+
+    def __init__(self):
+        self.run_manager = BioinformaticsRunManager()
+        self.method_manager = BioinformaticsMethodManager()
+
     def display_info(self):
         """Display preview information for bioinformatics data."""
         if (
@@ -1269,18 +1802,19 @@ class BioInfoPage:
             or "bioinfo_run_infos" in st.session_state
         ):
             st.subheader("Preview Bioinformatics Information", divider="gray")
-            self._preview_bioinfo_runs()
-            self._preview_bioinfo_methods()
+            self.run_manager.preview_runs()
+            self.method_manager.preview_methods()
 
     def run(self):
-        # Add bioinformatics information
-        self.add_bioinfo_run_vals()
-        self.add_bioinfo_methods_information()
-        self.transform_and_save_data()
+        """Run the complete bioinformatics information page."""
+        self.run_manager.add_runs()
+        self.method_manager.add_methods_information()
+        self.method_manager.save_method()
+        self.method_manager.remove_methods_section()
         self.display_info()
 
 
-# Initialize and run the page
+# Initialize and run the app
 if __name__ == "__main__":
     render_header()
     st.subheader("Bioinformatics Run Information", divider="gray")
@@ -1291,10 +1825,12 @@ if __name__ == "__main__":
                 "pages/4_Panel_Information.py": `import streamlit as st
 import json
 import os
+import pandas as pd
 from src.field_matcher import load_data
 from src.transformer import transform_panel_info
 from src.format_page import render_header
 from src.utils import load_schema
+from pmotools.pmo_builder.panel_information_to_pmo import merge_panel_info_dicts
 
 session_name = "panel_info"
 title = "panel information"
@@ -1349,17 +1885,115 @@ class PanelPage:
         if use_past:
             saved_panels = self.panel_manager.get_saved_panels()
             if saved_panels:
-                selected_panel = st.selectbox("Select a saved panel:", saved_panels)
-                if st.button("Load Panel"):
-                    panel_data = self.panel_manager.load_panel(selected_panel)
-                    st.session_state["panel_info"] = panel_data
-                    st.success(f"Loaded panel: {selected_panel}")
+                selected_panels = st.multiselect(
+                    "Select saved panel(s) to load:",
+                    saved_panels,
+                    help="Select one or more panels. If multiple are selected, they will be merged together.",
+                )
+                if st.button("Load Panel(s)"):
+                    if not selected_panels:
+                        st.warning("Please select at least one panel to load.")
+                    elif len(selected_panels) == 1:
+                        # Single panel - just load it
+                        panel_data = self.panel_manager.load_panel(selected_panels[0])
+                        st.session_state["panel_info"] = panel_data
+                        st.success(f"Loaded panel: {selected_panels[0]}")
+                    else:
+                        # Multiple panels - merge them
+                        if merge_panel_info_dicts is None:
+                            st.error(
+                                "The merge_panel_info_dicts function could not be imported from pmotools. "
+                                "Please ensure pmotools is installed and the function is available."
+                            )
+                        else:
+                            try:
+                                # Load all selected panels
+                                panel_dicts = [
+                                    self.panel_manager.load_panel(panel_name)
+                                    for panel_name in selected_panels
+                                ]
+                                # Merge the panels
+                                merged_panel_data = merge_panel_info_dicts(panel_dicts)
+                                st.session_state["panel_info"] = merged_panel_data
+                                st.success(
+                                    f"Successfully merged {len(selected_panels)} panel(s): {', '.join(selected_panels)}"
+                                )
+                            except Exception as e:
+                                st.error(f"Error merging panels: {e}")
             else:
                 st.warning("No saved panels found.")
 
     def panel_id_input(self):
-        st.subheader("Panel ID")
-        return st.text_input("Enter panel ID:", help="Identifier for the panel.")
+        st.subheader("Panel Name")
+
+        # Get unique panel names from library_sample_info if available
+        suggested_panels = []
+        if "library_sample_info" in st.session_state:
+            library_sample_info = st.session_state["library_sample_info"]
+            try:
+                # Handle DataFrame
+                if isinstance(library_sample_info, pd.DataFrame):
+                    if "panel_name" in library_sample_info.columns:
+                        suggested_panels = sorted(
+                            library_sample_info["panel_name"].dropna().unique().tolist()
+                        )
+                # Handle dict (could be a dict representation of DataFrame or nested structure)
+                elif isinstance(library_sample_info, dict):
+                    # Check if it's a dict with 'panel_name' as a key containing a list/Series
+                    if "panel_name" in library_sample_info:
+                        panel_data = library_sample_info["panel_name"]
+                        if isinstance(panel_data, (list, pd.Series)):
+                            if isinstance(panel_data, pd.Series):
+                                suggested_panels = sorted(
+                                    panel_data.dropna().unique().tolist()
+                                )
+                            else:
+                                suggested_panels = sorted(
+                                    list(set([p for p in panel_data if p]))
+                                )
+                    # Check if values in dict are DataFrames with panel_name column
+                    else:
+                        for value in library_sample_info.values():
+                            if (
+                                isinstance(value, pd.DataFrame)
+                                and "panel_name" in value.columns
+                            ):
+                                suggested_panels.extend(
+                                    value["panel_name"].dropna().unique().tolist()
+                                )
+                        suggested_panels = sorted(list(set(suggested_panels)))
+                # Handle list of dicts
+                elif isinstance(library_sample_info, list):
+                    panel_names = [
+                        item.get("panel_name")
+                        for item in library_sample_info
+                        if isinstance(item, dict) and item.get("panel_name")
+                    ]
+                    suggested_panels = sorted(list(set(panel_names)))
+            except Exception:
+                # If extraction fails, just continue without suggestions
+                pass
+
+        # If we have suggested panels, show a selectbox with option to enter custom
+        if suggested_panels:
+            panel_options = suggested_panels + ["Enter custom panel name"]
+            selected_option = st.selectbox(
+                "Select panel name or enter custom:",
+                panel_options,
+                index=0,  # Default to first panel
+                help=f"Suggested panel names from library sample info: {', '.join(suggested_panels)}",
+            )
+
+            if selected_option == "Enter custom panel name":
+                return st.text_input(
+                    "Enter panel name:", help="Identifier name for the panel."
+                )
+            else:
+                return selected_option
+        else:
+            return st.text_input(
+                "Enter panel name:", help="Identifier name for the panel."
+            )
 
     def add_genome_information(self):
         st.subheader("Add Genome Information")
@@ -1389,21 +2023,42 @@ class PanelPage:
         selected_optional_fields,
         selected_additional_fields,
     ):
-        if (
-            all(
-                [
-                    panel_ID,
-                    field_mapping,
-                    genome_info["name"],
-                    genome_info["taxon_id"],
-                    genome_info["genome_version"],
-                    genome_info["url"],
-                ]
-            )
-            and selected_optional_fields != "Error"
-        ):
-            st.subheader("Transform Data")
-            if st.button("Transform Data"):
+        st.subheader("Transform Data")
+        if st.button("Transform Data"):
+            # Validate required fields
+            errors = []
+
+            if not panel_ID or not panel_ID.strip():
+                errors.append("Panel ID is required.")
+
+            if not field_mapping:
+                errors.append(
+                    "Field mapping is required. Please upload a file and map the fields."
+                )
+
+            if not genome_info.get("name") or not genome_info["name"].strip():
+                errors.append("Genome name is required.")
+
+            if not genome_info.get("taxon_id") or not genome_info["taxon_id"].strip():
+                errors.append("Taxon ID is required.")
+
+            if (
+                not genome_info.get("genome_version")
+                or not genome_info["genome_version"].strip()
+            ):
+                errors.append("Genome version is required.")
+
+            if not genome_info.get("url") or not genome_info["url"].strip():
+                errors.append("Genome URL is required.")
+
+            if selected_optional_fields == "Error":
+                errors.append("There was an error with the optional fields selection.")
+
+            if errors:
+                for error in errors:
+                    st.error(error)
+            else:
+                # All validations passed, proceed with transformation
                 transformed_df = transform_panel_info(
                     df,
                     panel_ID,
@@ -1412,7 +2067,6 @@ class PanelPage:
                     selected_optional_fields,
                     selected_additional_fields,
                 )
-                # json_data = json.dumps(transformed_df, indent=4)
                 st.session_state["panel_info"] = transformed_df
                 try:
                     self.panel_manager.save_panel(panel_ID, transformed_df)
@@ -1591,7 +2245,6 @@ session_name = "library_sample_info"
 title = "library sample level metadata"
 
 
-# TODO: Allow plate position to be specified instead of row and col.
 class LibrarySampleMetadataPageMetadataPage:
     def __init__(
         self,
@@ -1872,7 +2525,7 @@ def interactive_field_mapping_page_section(
     return field_mapping, df_columns
 
 
-def additional_fields_section(unused_field_names):
+def additional_fields_section(unused_field_names, key_suffix=None):
     """Show an Additional Fields section for unmatched input fields and allow selection."""
     selected_additional_fields = []
     if not unused_field_names:
@@ -1886,7 +2539,12 @@ def additional_fields_section(unused_field_names):
     cols = st.columns(2) if len(unused_field_names) <= 6 else st.columns(3)
     for i, field in enumerate(unused_field_names):
         with cols[i % len(cols)]:
-            include = st.checkbox(f"{field}", key=f"additional_{field}")
+            checkbox_key = (
+                f"additional_{key_suffix}_{field}"
+                if key_suffix
+                else f"additional_{field}"
+            )
+            include = st.checkbox(f"{field}", key=checkbox_key)
             if include:
                 selected_additional_fields.append(field)
 
@@ -1929,11 +2587,15 @@ def load_data(
     target_alternate_schema,
     optional_field_schema,
     optional_field_alternate_schema,
+    key_suffix="",
 ):
     # Load file
     st.subheader("Upload File")
+    file_uploader_key = f"file_uploader_{key_suffix}" if key_suffix else None
     uploaded_file = st.file_uploader(
-        "Upload a TSV file", type=["csv", "tsv", "xlsx", "xls", "txt"]
+        "Upload a TSV file",
+        type=["csv", "tsv", "xlsx", "xls", "txt"],
+        key=file_uploader_key,
     )
     df, mapped_fields, selected_optional_fields, selected_additional_fields = (
         None,
@@ -1943,31 +2605,40 @@ def load_data(
     )
     if uploaded_file:
         df = load_csv(uploaded_file)
-        interactive_preview = st.toggle("Preview File")
+        preview_toggle_key = f"preview_toggle_{key_suffix}" if key_suffix else None
+        interactive_preview = st.toggle("Preview File", key=preview_toggle_key)
         if interactive_preview:
             st.write("Uploaded File Preview:")
             st.dataframe(df)
 
         # Required fields
         st.subheader("Required Fields")
+        required_key_suffix = f"{key_suffix}_required" if key_suffix else "required"
         mapped_fields, unused_field_names = field_mapping(
             df.columns.tolist(),
             target_schema,
             target_alternate_schema,
-            key_suffix="required",
+            key_suffix=required_key_suffix,
             is_required=True,
         )
-        # Optional fields
-        st.subheader("Optional Fields")
-        mapped_optional_fields, unused_field_names = field_mapping(
-            unused_field_names,
-            optional_field_schema,
-            optional_field_alternate_schema,
-            key_suffix="optional",
-            is_required=False,
-        )
+        if optional_field_schema:
+            # Optional fields
+            st.subheader("Optional Fields")
+            optional_key_suffix = f"{key_suffix}_optional" if key_suffix else "optional"
+            mapped_optional_fields, unused_field_names = field_mapping(
+                unused_field_names,
+                optional_field_schema,
+                optional_field_alternate_schema,
+                key_suffix=optional_key_suffix,
+                is_required=False,
+            )
+        else:
+            mapped_optional_fields = None
         # Additional fields
-        selected_additional_fields = additional_fields_section(unused_field_names)
+        additional_key_suffix = f"{key_suffix}_additional" if key_suffix else None
+        selected_additional_fields = additional_fields_section(
+            unused_field_names, key_suffix=additional_key_suffix
+        )
         # For output, set selected_optional_fields to the optional mapping result
         selected_optional_fields = mapped_optional_fields
 
@@ -1978,10 +2649,11 @@ def load_data(
 
 
 def load_csv(file):
-    """Load a CSV file into a pandas DataFrame."""
+    """Load a CSV file into a pandas DataFrame with automatic separator detection."""
     try:
         if file.name.endswith((".csv", ".tsv", ".txt")):
-            df = pd.read_csv(file, sep="\t")
+            # Use pandas' automatic separator detection
+            df = pd.read_csv(file, sep=None, engine="python")
         elif file.name.endswith((".xlsx", ".xls")):
             df = pd.read_excel(file)
         else:
@@ -2163,6 +2835,9 @@ def load_schema():
                 
                 "src/transformer.py": `from pmotools.pmo_builder.mhap_table_to_pmo import mhap_table_to_pmo
 from pmotools.pmo_builder.panel_information_to_pmo import panel_info_table_to_pmo
+from pmotools.pmo_builder.read_count_by_stage_table_to_pmo import (
+    read_count_by_stage_table_to_pmo,
+)
 from pmotools.pmo_builder.metatable_to_pmo import (
     library_sample_info_table_to_pmo,
     specimen_info_table_to_pmo,
@@ -2218,6 +2893,7 @@ def transform_panel_info(
         target_name_col=field_mapping["target_name"],
         forward_primers_seq_col=field_mapping["forward_primer_seq"],
         reverse_primers_seq_col=field_mapping["reverse_primer_seq"],
+        reaction_name_col=optional_fields.get("reaction_name"),
         forward_primers_start_col=optional_fields.get("forward_primers_start"),
         forward_primers_end_col=optional_fields.get("forward_primers_end"),
         reverse_primers_start_col=optional_fields.get("reverse_primers_start"),
@@ -2226,6 +2902,7 @@ def transform_panel_info(
         insert_end_col=optional_fields.get("insert_end"),
         chrom_col=optional_fields.get("chrom_col"),
         strand_col=optional_fields.get("strand"),
+        ref_seq_col=optional_fields.get("ref_seq"),
         gene_name_col=optional_fields.get("gene_name"),
         target_attributes_col=optional_fields.get("target_attributes"),
         additional_target_info_cols=additional_target_info_cols,
@@ -2245,6 +2922,8 @@ def transform_specimen_info(
         collection_country_col=field_mapping["collection_country"],
         project_name_col=field_mapping["project_name"],
         # optional fields - only pass if not None
+        alternate_identifiers_col=optional_field_mapping.get("alternate_identifiers"),
+        blood_meal_col=optional_field_mapping.get("blood_meal"),
         drug_usage_col=optional_field_mapping.get("drug_usage"),
         env_broad_scale_col=optional_field_mapping.get("env_broad_scale"),
         env_local_scale_col=optional_field_mapping.get("env_local_scale"),
@@ -2252,6 +2931,11 @@ def transform_specimen_info(
         geo_admin1_col=optional_field_mapping.get("geo_admin1"),
         geo_admin2_col=optional_field_mapping.get("geo_admin2"),
         geo_admin3_col=optional_field_mapping.get("geo_admin3"),
+        gravid_col=optional_field_mapping.get("gravid"),
+        gravidity_col=optional_field_mapping.get("gravidity"),
+        has_travel_out_six_month_col=optional_field_mapping.get(
+            "has_travel_out_six_month"
+        ),
         host_age_col=optional_field_mapping.get("host_age"),
         host_sex_col=optional_field_mapping.get("host_sex"),
         host_subject_id=optional_field_mapping.get("host_subject_id"),
@@ -2269,13 +2953,11 @@ def transform_specimen_info(
         ),
         specimen_comments_col=optional_field_mapping.get("specimen_comments"),
         specimen_store_loc_col=optional_field_mapping.get("specimen_store_loc"),
+        specimen_type_col=optional_field_mapping.get("specimen_type"),
+        treatment_status_col=optional_field_mapping.get("treatment_status"),
         additional_specimen_cols=additional_fields,
-        list_values_specimen_columns=optional_field_mapping.get("alternate_identifiers")
-        if optional_field_mapping.get("alternate_identifiers") is not None
-        else [],
         list_values_specimen_columns_delimiter=",",
     )
-    # TODO: make sure list values are handled correctly
     return transformed_df
 
 
@@ -2288,29 +2970,45 @@ def transform_library_sample_info(
         sequencing_info_name_col=field_mapping["sequencing_info_name"],
         specimen_name_col=field_mapping["specimen_name"],
         panel_name_col=field_mapping["panel_name"],
-        accession_col=optional_mapping.get("accession"),
-        library_prep_plate_col_col=optional_mapping.get("library_prep_plate_col"),
+        alternate_identifiers_col=optional_mapping.get("alternate_identifiers"),
+        experiment_accession_col=optional_mapping.get("experiment_accession"),
+        fastqs_loc_col=optional_mapping.get("fastqs_loc"),
         library_prep_plate_name_col=optional_mapping.get("library_prep_plate_name"),
+        library_prep_plate_col_col=optional_mapping.get("library_prep_plate_col"),
         library_prep_plate_row_col=optional_mapping.get("library_prep_plate_row"),
         library_prep_plate_position_col=optional_mapping.get(
             "library_prep_plate_position"
         ),
+        parasite_density_col=optional_mapping.get("parasite_density"),
+        parasite_density_method_col=optional_mapping.get("parasite_density_method"),
+        run_accession_col=optional_mapping.get("run_accession"),
         additional_library_sample_info_cols=additional_fields,
     )
     return transformed_df
 
 
-# def transform_demultiplexed_info(df, bioinfo_id, field_mapping,
-#                                  optional_mapping, additional_hap_detected_cols=None):
-#     """Reformat the DataFrame based on the provided field mapping."""
-#     transformed_df = demultiplexed_targets_to_pmo_dict(
-#         df,
-#         bioinfo_id,
-#         sampleID_col=field_mapping["sampleID"],
-#         target_id_col=field_mapping['target_id'],
-#         read_count_col=field_mapping['raw_read_count'],
-#         additional_hap_detected_cols=additional_hap_detected_cols)
-#     return transformed_df
+def transform_read_counts_per_stage(
+    raw_counts_df,
+    reads_by_stage_df,
+    bioinfo_run_name,
+    raw_counts_field_mapping,
+    reads_by_stage_field_mapping,
+    raw_counts_selected_additional_fields=None,
+    reads_by_stage_selected_additional_fields=None,
+):
+    transformed_df = read_count_by_stage_table_to_pmo(
+        bioinformatics_run_name=bioinfo_run_name,
+        total_raw_count_table=raw_counts_df,
+        reads_by_stage_table=reads_by_stage_df,
+        library_sample_name_col=raw_counts_field_mapping["library_sample_name"],
+        total_raw_count_col=raw_counts_field_mapping["total_raw_count"],
+        target_name_col=reads_by_stage_field_mapping["target_name"],
+        stage_col=reads_by_stage_field_mapping["stage"],
+        read_count_col=reads_by_stage_field_mapping["read_count"],
+        additional_library_sample_cols=raw_counts_selected_additional_fields,
+        additional_target_cols=reads_by_stage_selected_additional_fields,
+    )
+    return transformed_df
 `,
                 
                 "images/PMO_logo.png": {'url': 'images/PMO_logo.png'},
@@ -2436,29 +3134,34 @@ def transform_library_sample_info(
         ],
         "required_alternatives": {
             "specimen_name": [
+                "specimen_name",
+                "specimen_id",
                 "sample_id",
                 "bio_id",
-                "specimen_name",
                 "sample_accession"
             ],
             "specimen_taxon_id": [
+                "specimen_taxon_id",
                 "taxon_id",
                 "species_id",
                 "organism_id",
                 "sample_taxon_id"
             ],
             "host_taxon_id": [
+                "host_taxon_id",
                 "taxon_id",
                 "species_id",
                 "individual_taxon_id",
                 "sample_taxon_id"
             ],
             "collection_date": [
+                "collection_date",
                 "date_of_collection",
                 "sampling_date",
                 "gathering_date"
             ],
             "collection_country": [
+                "collection_country",
                 "country_of_collection",
                 "sampling_country",
                 "origin_country",
@@ -2467,6 +3170,7 @@ def transform_library_sample_info(
                 "geo_admin0"
             ],
             "project_name": [
+                "project_name",
                 "study_name",
                 "research_project",
                 "experiment_name"
@@ -2482,20 +3186,24 @@ def transform_library_sample_info(
             "geo_admin1",
             "geo_admin2",
             "geo_admin3",
+            "gravid",
+            "gravidity",
+            "has_travel_out_six_month",
             "host_age",
             "host_sex",
             "host_subject_id",
             "lat_lon",
             "parasite_density",
             "parasite_density_method",
-            "specimen_collect_device",
-            "specimen_comments",
-            "specimen_store_loc",
+            "specimen_accession",
             "storage_plate_col",
             "storage_plate_name",
             "storage_plate_row",
             "storage_plate_position",
-            "travel_out_six_month",
+            "specimen_collect_device",
+            "specimen_comments",
+            "specimen_store_loc",
+            "specimen_type",
             "treatment_status"
         ],
         "optional_alternatives": {
@@ -2503,72 +3211,134 @@ def transform_library_sample_info(
                 "alternate identifiers",
                 "alternate_IDs"
             ],
-            "blood_meal": [],
-            "drug_usage": [
-                "treatment"
+            "blood_meal": [
+                "blood_meal",
+                "blood_meal_status"
             ],
-            "env_broad_scale": [],
-            "env_local_scale": [],
-            "env_medium": [],
+            "drug_usage": [
+                "drug_usage",
+                "drug_usage_status",
+                "treatment",
+                "treatment_status",
+                "drug_usage_status",
+                "treatment_status"
+            ],
+            "env_broad_scale": [
+                "environmental_broad_scale"
+            ],
+            "env_local_scale": [
+                "environmental_local_scale"
+            ],
+            "env_medium": [
+                "environmental_medium"
+            ],
             "geo_admin1": [
+                "geo_admin1",
                 "Region",
                 "State",
                 "District"
             ],
             "geo_admin2": [
+                "geo_admin2",
                 "District",
                 "county"
             ],
             "geo_admin3": [
+                "geo_admin3",
                 "City",
                 "health_facility"
             ],
-            "host_age": [],
+            "gravid": [
+                "gravid",
+                "pregnant",
+                "pregnancy_status"
+            ],
+            "gravidity": [
+                "gravidity",
+                "n_pregnancies",
+                "n_pregnancies_at_collection"
+            ],
+            "has_travel_out_six_month": [
+                "has_travel_out_six_month",
+                "travel",
+                "any_trips",
+                "travel_history"
+            ],
+            "host_age": [
+                "age",
+                "age_at_collection"
+            ],
             "host_sex": [
+                "host_sex",
                 "male",
                 "female"
             ],
             "host_subject_id": [
+                "host_subject_id",
                 "person",
                 "host_id",
                 "participant"
             ],
             "lat_lon": [
+                "lat_lon",
                 "latitude_longitude"
             ],
             "parasite_density": [
+                "parasite_density",
                 "parasitemia",
                 "parasitaemia",
                 "parasites/ul"
             ],
-            "parasite_density_method": [],
+            "parasite_density_method": [
+                "parasite_density_method"
+            ],
+            "specimen_accession": [
+                "sample_accession",
+                "SRR",
+                "SRA_accession"
+            ],
             "specimen_collect_device": [
+                "specimen_collect_device",
                 "instrument",
                 "collection_method",
                 "DBS"
             ],
             "specimen_comments": [
+                "specimen_comments",
                 "info",
                 "extra_info"
             ],
             "specimen_store_loc": [
+                "specimen_store_loc",
                 "storage",
                 "sample_location"
             ],
+            "specimen_type": [
+                "specimen_type",
+                "sample_type"
+            ],
             "storage_plate_col": [
+                "storage_plate_col",
                 "column"
             ],
             "storage_plate_name": [
+                "storage_plate_name",
                 "plate"
             ],
             "storage_plate_row": [
+                "storage_plate_row",
                 "row"
             ],
-            "storage_plate_position": [],
+            "storage_plate_position": [
+                "storage_plate_position",
+                "position"
+            ],
             "travel_out_six_month": [
+                "travel_out_six_month",
                 "travel_history"
             ],
             "treatment_status": [
+                "treatment_status",
                 "treated"
             ]
         }
@@ -2583,11 +3353,13 @@ def transform_library_sample_info(
         "required_alternatives": {
             "library_sample_name": [
                 "library_sample_id",
+                "library_sample_name",
                 "sample_name",
                 "library_id",
                 "experiment_sample_id"
             ],
             "sequencing_info_name": [
+                "sequencing_info_name",
                 "sequencing_info_id",
                 "seq_info_id",
                 "sequencing_id",
@@ -2596,6 +3368,7 @@ def transform_library_sample_info(
                 "seq_run"
             ],
             "specimen_name": [
+                "specimen_name",
                 "specimen_id",
                 "sample_id",
                 "bio_id",
@@ -2604,32 +3377,71 @@ def transform_library_sample_info(
             ],
             "panel_name": [
                 "panel_id",
+                "panel_name",
                 "test_panel_id",
                 "assay_id",
                 "panel"
             ]
         },
         "optional": [
-            "accession",
+            "alternate_identifiers",
+            "experiment_accession",
+            "fastqs_loc",
             "library_prep_plate_name",
             "library_prep_plate_col",
-            "library_prep_plate_row"
+            "library_prep_plate_row",
+            "library_prep_plate_position",
+            "parasite_density",
+            "parasite_density_method",
+            "run_accession"
         ],
         "optional_alternatives": {
-            "accession": [
+            "alternate_identifiers": [
+                "alternate identifiers",
+                "alternate_IDs"
+            ],
+            "experiment_accession": [
+                "experiment_accession",
                 "Accession information"
             ],
+            "fastqs_loc": [
+                "fastqs_loc",
+                "fastqs_location",
+                "fastq_files"
+            ],
             "library_prep_plate_name": [
+                "library_prep_plate_name",
                 "plate_name",
                 "name_of_plate"
             ],
             "library_prep_plate_col": [
+                "library_prep_plate_col",
                 "plate_col",
                 "plate_column"
             ],
             "library_prep_plate_row": [
+                "library_prep_plate_row",
                 "plate_row",
                 "row_of_plate"
+            ],
+            "library_prep_plate_position": [
+                "library_prep_plate_position",
+                "plate_position",
+                "position_on_plate"
+            ],
+            "parasite_density": [
+                "parasite_density",
+                "parasites/ul"
+            ],
+            "parasite_density_method": [
+                "parasite_density_method",
+                "method"
+            ],
+            "run_accession": [
+                "accession",
+                "run_accession",
+                "run_id",
+                "run_accession_number"
             ]
         }
     },
@@ -2642,12 +3454,14 @@ def transform_library_sample_info(
         ],
         "required_alternatives": {
             "library_sample_name": [
+                "library_sample_name",
                 "library_sample_id",
                 "sample_id",
                 "biosample_id",
                 "specimen_id"
             ],
             "target_name": [
+                "target_name",
                 "target_id",
                 "locus",
                 "marker_id",
@@ -2656,6 +3470,7 @@ def transform_library_sample_info(
                 "p_targetName"
             ],
             "seq": [
+                "seq",
                 "asv",
                 "amplicon_sequence_variant",
                 "otu",
@@ -2665,6 +3480,7 @@ def transform_library_sample_info(
                 "sequence"
             ],
             "reads": [
+                "reads",
                 "read_count",
                 "sequence_reads",
                 "read_depth",
@@ -2691,41 +3507,51 @@ def transform_library_sample_info(
         ],
         "optional_alternatives": {
             "umis": [
+                "umis",
                 "umi",
                 "unique_molecular_identifiers"
             ],
             "chrom": [
+                "chrom",
                 "chromosome",
                 "chr"
             ],
             "start": [
+                "start",
                 "start_position",
                 "genomic_start"
             ],
             "end": [
+                "end",
                 "end_position",
                 "genomic_end"
             ],
             "ref_seq": [
+                "ref_seq",
                 "reference_sequence",
                 "reference_seq"
             ],
             "strand": [
+                "strand",
                 "strand_orientation"
             ],
             "alt_annotations": [
+                "alt_annotations",
                 "alternative_annotations",
                 "annotations"
             ],
             "masking_seq_start": [
+                "masking_seq_start",
                 "masking_start",
                 "mask_start"
             ],
             "masking_seq_segment_size": [
+                "masking_seq_segment_size",
                 "masking_segment_size",
                 "mask_segment_size"
             ],
             "masking_replacement_size": [
+                "masking_replacement_size",
                 "masking_replacement",
                 "mask_replacement"
             ],
@@ -2800,6 +3626,61 @@ def transform_library_sample_info(
             "denoising_method",
             "tar_amp_bioinformatics_info_id"
         ]
+    },
+    "read_counts_perstage": {
+        "raw_counts":{
+            "required": [
+                "library_sample_name",
+                "total_raw_count"
+            ],
+            "required_alternatives":{
+                "library_sample_name": [
+                    "library_sample_id",
+                    "sample_id",
+                    "biosample_id",
+                    "specimen_id"
+                ],
+                "total_raw_count": [
+                    "read_count",
+                    "sequence_reads",
+                    "read_depth",
+                    "demuliplexed",
+                    "demuliplexed_read_count"
+                ]
+            }
+        },
+        "reads_by_stage":{
+            "required": [
+                "library_sample_name",
+                "target_name",
+                "stage",
+                "read_count"
+            ],
+            "required_alternatives": {
+                "library_sample_name": [
+                    "library_sample_id",
+                    "sample_id",
+                    "biosample_id"
+                ],
+                "target_name": [
+                    "locus",
+                    "marker_id",
+                    "amplicon",
+                    "locus_id"
+                ],
+                "stage": [
+                    "stage",
+                    "pipeline_stage"
+                ],
+                "read_count": [
+                    "read_count",
+                    "sequence_reads",
+                    "read_depth",
+                    "demuliplexed",
+                    "demuliplexed_read_count"
+                ]
+            }
+        }
     }
 }
 `,

@@ -1,19 +1,80 @@
 import jinja2
 import os
 import shutil
+import tokenize
+import io
 
 requirements = [
     "pandas",
     "fuzzywuzzy",
     "openpyxl",
-    # TODO: remove this once the package is published
     "pmotools"
-    # "https://plasmogenepi.github.io/pmotool-app-web/assets/pmotools-0.1.0-py3-none-any.whl"
-    # "http://localhost:8001/assets/pmotools-0.1.0-py3-none-any.whl"
 ]
 
 entrypoint = "PMO_Builder.py"
 build_dir = "docs"
+
+def escape_python_strings(content):
+    """Replace literal "\n" (backslash+n) with "\\n" (backslash+backslash+n) inside string literals.
+    
+    Only replaces the two-character sequence \n (and \t) that appear inside
+    Python string literals, converting them to \\n (and \\t).
+    Does not modify structural newlines (line breaks) in the source code.
+    """
+    try:
+        # Tokenize the Python code to identify string literals
+        tokens = list(tokenize.generate_tokens(io.StringIO(content).readline))
+        
+        # Convert content to list of lines for easier manipulation
+        lines = content.split('\n')
+        
+        # Process tokens in reverse order to maintain positions
+        # (reverse order so earlier replacements don't affect later positions)
+        for token in reversed(tokens):
+            token_type, token_string, start, end, _ = token
+            
+            # Only process string literals
+            if token_type == tokenize.STRING:
+                # Extract the raw string content from source (between the quotes)
+                # Get the exact substring from the source code
+                if start[0] == end[0]:
+                    # Single line string
+                    line = lines[start[0] - 1]
+                    raw_string = line[start[1]:end[1]]
+                else:
+                    # Multi-line string
+                    raw_string = lines[start[0] - 1][start[1]:]
+                    for i in range(start[0], end[0] - 1):
+                        raw_string += '\n' + lines[i]
+                    raw_string += '\n' + lines[end[0] - 1][:end[1]]
+                
+                # Replace \n with \\n and \t with \\t within the string literal content
+                # We need to replace the literal two-character sequences
+                modified_string = raw_string.replace('\\n', '\\\\n').replace('\\t', '\\\\t')
+                
+                # Replace the original string in the content
+                if start[0] == end[0]:
+                    # Single line string
+                    lines[start[0] - 1] = line[:start[1]] + modified_string + line[end[1]:]
+                else:
+                    # Multi-line string
+                    modified_lines = modified_string.split('\n')
+                    # Replace first line
+                    lines[start[0] - 1] = lines[start[0] - 1][:start[1]] + modified_lines[0]
+                    # Replace middle lines
+                    for i in range(1, len(modified_lines) - 1):
+                        if start[0] - 1 + i < len(lines):
+                            lines[start[0] - 1 + i] = modified_lines[i]
+                    # Replace last line
+                    if len(modified_lines) > 1:
+                        lines[end[0] - 1] = modified_lines[-1] + lines[end[0] - 1][end[1]:]
+        
+        return '\n'.join(lines)
+    
+    except (tokenize.TokenError, SyntaxError):
+        # If tokenization fails (e.g., incomplete code), fall back to no replacement
+        # This shouldn't happen for valid Python files, but provides a safety net
+        return content
 
 def build_site():
     # Load the template
@@ -31,7 +92,9 @@ def build_site():
             if file.endswith(".py"):
                 with open(os.path.join(root, file), "r") as f:
                     file_name = os.path.join(root, file).replace("pmotools-app/", "")
-                    parsed_files.append({"name": file_name, "content": f"`{f.read()}`"})
+                    content = f.read()
+                    content = escape_python_strings(content)
+                    parsed_files.append({"name": file_name, "content": f"`{content}`"})
 
     # Add the images to the parsed files
     for root, dirs, files in os.walk("pmotools-app"):
