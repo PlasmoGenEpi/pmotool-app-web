@@ -46,12 +46,48 @@ pmotool-app-web/
    uv sync
    ```
 
+## Common commands
+
+This repo includes a `Makefile` for routine tasks (requires [uv](https://github.com/astral-sh/uv)):
+
+```bash
+make install          # uv sync
+make build            # generate docs/index.html
+make serve            # local server on port 8000 (PORT=8080 make serve)
+make help             # list all targets
+```
+
+### Dependencies
+
+**Source of truth:** `pmotools-app/pyproject.toml` (the PMO Builder app submodule).
+
+- **Local Streamlit:** install everything in pyproject, including `streamlit`.
+- **Browser (stlite):** `build_site.py` reads the same pyproject list, skips `streamlit`, and resolves pins via `stlite_requirements.py`:
+  - `pandas` / `numpy` (and any other Pyodide-built package): version from the Pyodide lockfile for `_PYODIDE_VERSION`
+  - Packages with `==` in pyproject: that pin (micropip / PyPI)
+  - Packages with only `>=`: version from `pmotools-app/uv.lock` (pin with `==` in pyproject when you want an explicit browser pin)
+
+Add a new dependency in **pmotools-app**, run `uv lock` / `uv sync` there, then `make build`. If the build prints warnings that Pyodide overrides a pin (common for pandas/numpy), that is expected.
+
+### Upgrading @stlite/browser
+
+When bumping the in-browser Streamlit runtime:
+
+```bash
+make stlite-check STLITE_VERSION=1.3.0    # preview resolved requirements
+make stlite-upgrade STLITE_VERSION=1.3.0  # update Pyodide/stlite versions + build
+# or: make stlite-latest
+```
+
+This updates `_PYODIDE_VERSION`, CDN URLs, and `pyodide-lock-cache/`. See `scripts/sync_stlite_pins.py` for `--pyodide-version` and other flags.
+
 ## Building the Site
 
 To build the web application, run:
 
 ```bash
-python build_site.py
+make build
+# or: uv run python build_site.py
 ```
 
 This script will:
@@ -66,13 +102,14 @@ This script will:
 To test the built site locally, you can use the included simple server:
 
 ```bash
-python simple_server.py docs
+make serve
+# or: uv run python simple_server.py docs
 ```
 
-This will serve the `docs/` directory on port 8000 by default. You can specify a different port:
+This serves the `docs/` directory on port 8000 by default. Use a different port:
 
 ```bash
-python simple_server.py docs 8080
+PORT=8080 make serve
 ```
 
 The server includes CORS headers, making it suitable for local development and testing.
@@ -110,16 +147,12 @@ git add pmotools-app
 git commit -m "Update pmotools-app submodule to latest version"
 ```
 
-## Dependencies
+## Build tooling
 
 - `jinja2>=3.1.5` - Template engine for generating HTML
 - `ruff>=0.9.8` - Python linter and formatter
 
-The built application also includes:
-- `pandas` - Data manipulation
-- `fuzzywuzzy` - Fuzzy string matching
-- `openpyxl` - Excel file handling
-- `pmotools_python` - PMO tools library (packaged as a wheel)
+Runtime Python packages for the web app come from `pmotools-app/pyproject.toml` (see **Dependencies** above).
 
 ## License
 

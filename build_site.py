@@ -4,12 +4,21 @@ import shutil
 import tokenize
 import io
 
-requirements = [
-    "pandas",
-    "fuzzywuzzy",
-    "openpyxl",
-    "pmotools"
-]
+from stlite_requirements import (
+    pyodide_lock_url,
+    resolve_stlite_requirements,
+    version_log_snippet,
+)
+
+# Must match template.jinja (@stlite/browser version).
+# Upgrade: make stlite-upgrade STLITE_VERSION=<version>
+_STLITE_BROWSER_VERSION = "1.2.0"
+# @stlite/browser@1.2.0 loads this Pyodide release (stlite packages/kernel/src/worker.ts).
+_PYODIDE_VERSION = "0.28.2"
+_PYODIDE_LOCK_URL = pyodide_lock_url(_PYODIDE_VERSION)
+
+requirements, _requirement_warnings = resolve_stlite_requirements(_PYODIDE_VERSION)
+_VERSION_LOG_SNIPPET = version_log_snippet()
 
 entrypoint = "PMO_Builder.py"
 build_dir = "docs"
@@ -93,6 +102,8 @@ def build_site():
                 with open(os.path.join(root, file), "r") as f:
                     file_name = os.path.join(root, file).replace("pmotools-app/", "")
                     content = f.read()
+                    if file_name == "PMO_Builder.py":
+                        content = _VERSION_LOG_SNIPPET + content
                     content = escape_python_strings(content)
                     parsed_files.append({"name": file_name, "content": f"`{content}`"})
 
@@ -130,4 +141,11 @@ def build_site():
 
 
 if __name__ == "__main__":
+    print(f"Stlite @{_STLITE_BROWSER_VERSION} / Pyodide v{_PYODIDE_VERSION}")
+    print(f"Lockfile: {_PYODIDE_LOCK_URL}")
+    print("Requirements (from pmotools-app/pyproject.toml):")
+    for req in requirements:
+        print(f"  {req}")
+    for warning in _requirement_warnings:
+        print(f"  warning: {warning}")
     build_site()
