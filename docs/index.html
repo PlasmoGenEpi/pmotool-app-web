@@ -66,6 +66,14 @@ def sample_field_mapping():
     }
 `,
                 
+                "main.py": `def main():
+    print("Hello from pmotools-app!")
+
+
+if __name__ == "__main__":
+    main()
+`,
+                
                 "PMO_Builder.py": `print("[pmo-build] pmotools-app=aae15f0ed4db907ef567c56f9f629632d4a9d4be", flush=True)
 
 import importlib.metadata
@@ -140,268 +148,6 @@ def main():
 
 if __name__ == "__main__":
     main()
-`,
-                
-                "main.py": `def main():
-    print("Hello from pmotools-app!")
-
-
-if __name__ == "__main__":
-    main()
-`,
-                
-                "pages/9_Create_Final_PMO.py": `import streamlit as st
-import json
-import os
-from src.format_page import render_header
-from pmotools.pmo_builder.merge_to_pmo import merge_to_pmo
-
-check_dict = {
-    "project_info": "Project Information",
-    "specimen_info": "Specimen Level Metadata",
-    "library_sample_info": "Library Sample Level Metadata",
-    "panel_info": "Panel Information",
-    "seq_info": "Sequencing Information",
-    "microhaplotype_info": "Microhaplotype Information",
-    "bioinfo_run_infos": "Bioinformatics Runs Information",
-}
-
-
-def check_all(check_dict):
-    """
-    checks if outputs of a given page exists, and refers user to the page to
-    populate if the page doesn't exist
-    """
-    all_passed = True
-    for check_key, source_page in check_dict.items():
-        if check_key in st.session_state:
-            st.success(f"Data from {source_page} tab has been successfully loaded.")
-        else:
-            st.error(
-                f"Data from {source_page} tab not found. Please fill out"
-                f" the {source_page} tab (the link is at the left side of this"
-                " page) before proceeding"
-            )
-            all_passed = False
-    return all_passed
-
-
-def merge_data():
-    # MERGE DATA
-    st.subheader("Merge Components to Final PMO")
-    panel_info = st.session_state["panel_info"]
-
-    # Get bioinformatics methods and runs
-    bioinfo_methods = st.session_state.get("bioinfo_methods_list", [])
-    bioinfo_runs = st.session_state.get("bioinfo_run_infos", [])
-    if "read_counts_per_stage" in st.session_state:
-        read_counts_per_stage = st.session_state["read_counts_per_stage"]
-    else:
-        read_counts_per_stage = None
-    if st.button("Merge Data"):
-        try:
-            st.session_state["formatted_pmo"] = merge_to_pmo(
-                specimen_info=st.session_state["specimen_info"],
-                library_sample_info=st.session_state["library_sample_info"],
-                sequencing_info=st.session_state["seq_info"],
-                panel_info=panel_info,
-                mhap_info=st.session_state["microhaplotype_info"],
-                bioinfo_method_info=bioinfo_methods,
-                bioinfo_run_info=bioinfo_runs,
-                project_info=st.session_state["project_info"],
-                read_counts_by_stage_info=read_counts_per_stage,
-            )
-            st.success("Data merged successfully!")
-        except Exception as e:
-            st.error(f"Error merging data: {e}")
-
-    # Download button - only show if PMO has been created
-    if "formatted_pmo" in st.session_state:
-        st.subheader("Download PMO File")
-
-        # Convert the PMO data to JSON string
-        pmo_json = json.dumps(st.session_state["formatted_pmo"], indent=2, default=str)
-
-        # Create download button
-        st.download_button(
-            label="Download PMO JSON File",
-            data=pmo_json,
-            file_name="pmo_data.json",
-            mime="application/json",
-            help="Download the merged PMO data as a JSON file",
-        )
-
-        # Optional: Show preview of the data
-        with st.expander("Preview PMO Data"):
-            st.json(st.session_state["formatted_pmo"])
-
-
-# Initialize and run the app
-if __name__ == "__main__":
-    current_directory = os.getcwd()  # Get the current working directory
-    SAVE_DIR = os.path.join(current_directory, "finished_PMO_files")
-    os.makedirs(SAVE_DIR, exist_ok=True)
-    render_header()
-    st.subheader("Create Final PMO", divider="gray")
-    st.subheader("Components")
-    if check_all(check_dict):
-        merge_data()
-`,
-                
-                "pages/6_Microhaplotype_Information.py": `import streamlit as st
-from src.format_page import render_header
-from src.field_matcher import load_data
-from src.transformer import transform_mhap_info
-from src.utils import load_schema
-
-session_name = "microhaplotype_info"
-title = "microhaplotype information"
-
-
-class MicrohaplotypeInfoPage:
-    def __init__(
-        self,
-        required_fields,
-        required_alternate_fields,
-        optional_fields,
-        optional_alternate_fields,
-    ):
-        self.required_fields = required_fields
-        self.required_alternate_fields = required_alternate_fields
-        self.optional_fields = optional_fields
-        self.optional_alternate_fields = optional_alternate_fields
-
-    def bioinfo_id_input(self, df):
-        """Get bioinformatics ID from user - either from a column or as a string."""
-        st.subheader("Bioinformatics ID")
-
-        if df is not None and not df.empty:
-            # Option to select from column or enter manually
-            input_method = st.radio(
-                "Select bioinformatics ID source:",
-                ["Select from column", "Enter manually"],
-                horizontal=True,
-                key="bioinfo_id_method",
-            )
-
-            if input_method == "Select from column":
-                column = st.selectbox(
-                    "Select column containing bioinformatics ID:",
-                    df.columns.tolist(),
-                    key="bioinfo_id_column",
-                )
-                return column
-            else:
-                return st.text_input(
-                    "Enter bioinformatics ID:",
-                    help="Identifier for the bioinformatics run.",
-                    key="bioinfo_id_text",
-                )
-        else:
-            # No file uploaded, only allow manual entry
-            return st.text_input(
-                "Enter bioinformatics ID:",
-                help="Identifier for the bioinformatics run.",
-                key="bioinfo_id_text",
-            )
-
-    def transform_and_save_data(
-        self,
-        df,
-        bioinfo_id,
-        mapped_fields,
-        selected_optional_fields,
-        selected_additional_fields,
-    ):
-        st.subheader("Transform Data")
-        if st.button("Transform Data"):
-            # Validate required fields
-            errors = []
-
-            if not bioinfo_id or (
-                isinstance(bioinfo_id, str) and not bioinfo_id.strip()
-            ):
-                errors.append("Bioinformatics ID is required.")
-
-            if not mapped_fields:
-                errors.append(
-                    "Field mapping is required. Please upload a file and map the fields."
-                )
-
-            if selected_optional_fields == "Error":
-                errors.append("There was an error with the optional fields selection.")
-
-            if errors:
-                for error in errors:
-                    st.error(error)
-            else:
-                # All validations passed, proceed with transformation
-                transformed_df = transform_mhap_info(
-                    df.astype(object) if df is not None else None,
-                    bioinfo_id,
-                    mapped_fields,
-                    selected_optional_fields,
-                    selected_additional_fields,
-                )
-                st.session_state[session_name] = transformed_df
-                try:
-                    st.success("Microhaplotype Information has been saved!")
-                except Exception as e:
-                    st.error(f"Error saving Microhaplotype Information: {e}")
-
-    def display_microhaplotype_info(self, toggle_text):
-        if session_name in st.session_state:
-            preview = st.toggle(toggle_text)
-            if preview:
-                st.write(f"Current {title}:")
-                st.json(st.session_state[session_name])
-
-    def run(self):
-        (
-            df,
-            mapped_fields,
-            selected_optional_fields,
-            selected_additional_fields,
-        ) = load_data(
-            required_fields,
-            required_alternate_fields,
-            optional_fields,
-            optional_alternate_fields,
-        )
-        # Get bioinformatics ID input
-        bioinfo_id = self.bioinfo_id_input(df)
-        # Transform and save data
-        self.transform_and_save_data(
-            df,
-            bioinfo_id,
-            mapped_fields,
-            selected_optional_fields,
-            selected_additional_fields,
-        )
-        # Display current panel information
-        self.display_microhaplotype_info(f"Preview {title}")
-
-
-if __name__ == "__main__":
-    render_header()
-    st.subheader("Microhaplotype Information Converter", divider="gray")
-    schema_fields = load_schema()
-    required_fields = schema_fields["mhap_info"]["required"]
-    required_alternate_fields = schema_fields["mhap_info"]["required_alternatives"]
-    optional_fields = schema_fields["mhap_info"]["optional"]
-    optional_alternate_fields = schema_fields["mhap_info"]["optional_alternatives"]
-    app = MicrohaplotypeInfoPage(
-        required_fields,
-        required_alternate_fields,
-        optional_fields,
-        optional_alternate_fields,
-    )
-    if session_name in st.session_state:
-        st.success(
-            f"Your {title} has already been saved during a" " previous run of this page"
-        )
-        app.display_microhaplotype_info(f"Preview previously stored {title}")
-    app.run()
 `,
                 
                 "pages/5_Sequencing_Information.py": `import streamlit as st
@@ -738,320 +484,667 @@ if __name__ == "__main__":
     app.run()
 `,
                 
-                "pages/1_Project_Information.py": `import streamlit as st
+                "pages/4_Panel_Information.py": `import streamlit as st
+import json
+import os
 import pandas as pd
-from typing import Dict, List, Optional, Any
+from src.field_matcher import load_data
+from src.transformer import transform_panel_info
 from src.format_page import render_header
-from src.data_loader import load_csv
+from src.utils import load_schema
+from pmotools.pmo_builder.panel_information_to_pmo import merge_panel_info_dicts
 
-# Constants
-REQUIRED_FIELDS = ["project_name", "project_description"]
-SEPARATOR_OPTIONS = {"newline": "\\n", ",": ",", "tab": "\\t"}
-SUPPORTED_FILE_TYPES = ["csv", "tsv", "txt", "xlsx", "xls"]
+session_name = "panel_info"
+title = "panel information"
 
 
-class ProjectInfoPage:
-    """Handles project information collection and management."""
+class PanelManager:
+    def __init__(self, save_dir):
+        self.save_dir = save_dir
 
-    def __init__(self) -> None:
-        """Initialize the project info page."""
-        self.project_info: Dict[str, Any] = {}
+    def check_save_dir(self):
+        """Check dir exists or create it."""
+        os.makedirs(self.save_dir, exist_ok=True)
 
-    def add_required_project_information(self) -> None:
-        """Add required project information fields."""
-        st.subheader("Add Project Information")
+    def save_panel(self, panel_name, panel_data):
+        """Save panel data to a JSON file."""
+        with open(os.path.join(self.save_dir, f"{panel_name}.json"), "w") as f:
+            json.dump(panel_data, f)
 
-        self.project_info["project_name"] = st.text_input(
-            "Project Name:", help="A unique identifier for this project."
-        )
-        self.project_info["project_description"] = st.text_input(
-            "Project Description:", help="A short description of the project."
-        )
+    def load_panel(self, panel_name):
+        """Load panel data from a JSON file."""
+        with open(os.path.join(self.save_dir, f"{panel_name}.json"), "r") as f:
+            return json.load(f)
 
-    def _get_contributors_from_text(self) -> List[str]:
-        """Get contributors from text input."""
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            contributors = st.text_area(
-                "",
-                help="List collaborators separated by tab, comma, or newline "
-                "(e.g., Alice  Bob Tony)",
-            )
-        with col2:
-            sep = st.selectbox("Separator", SEPARATOR_OPTIONS.keys())
+    def get_saved_panels(self):
+        """Get a list of saved panel names."""
+        return [
+            f.split(".json")[0]
+            for f in os.listdir(self.save_dir)
+            if f.endswith(".json")
+        ]
 
-        if contributors:
-            return [
-                c.strip()
-                for c in contributors.split(SEPARATOR_OPTIONS[sep])
-                if c.strip()
-            ]
-        return []
 
-    def _get_contributors_from_file(self) -> List[str]:
-        """Get contributors from uploaded file.
+class PanelPage:
+    def __init__(
+        self,
+        save_dir,
+        required_fields,
+        required_alternate_fields,
+        optional_fields,
+        optional_alternate_fields,
+    ):
+        self.save_dir = save_dir
+        self.panel_manager = PanelManager(self.save_dir)
+        self.panel_manager.check_save_dir()
+        self.required_fields = required_fields
+        self.required_alternate_fields = required_alternate_fields
+        self.optional_fields = optional_fields
+        self.optional_alternate_fields = optional_alternate_fields
 
-        Handles two cases:
-        1. Simple list: File with one name per line (with or without header)
-        2. Table: File with multiple columns, user selects which column to use
-        """
-        uploaded_file = st.file_uploader(
-            "Upload a CSV, TSV, TXT, or Excel file", type=SUPPORTED_FILE_TYPES
-        )
-        if not uploaded_file:
-            return []
-
-        try:
-            # Reset file pointer to beginning in case it was read before
-            uploaded_file.seek(0)
-
-            # For text-based files, check if it's a simple list first
-            # Excel files are always read with header assumption
-            is_text_file = uploaded_file.name.endswith((".csv", ".tsv", ".txt"))
-
-            if is_text_file:
-                # Read file content to check if it's a simple list (one value per line)
-                uploaded_file.seek(0)
-                content = uploaded_file.read().decode("utf-8")
-                lines = [line.strip() for line in content.split("\\n") if line.strip()]
-
-                # Check if this looks like a simple list (each line has one value, no commas/tabs in most lines)
-                # Count lines that look like they have multiple values (contain comma or tab)
-                multi_value_lines = sum(
-                    1 for line in lines if "," in line or "\\t" in line
+    def load_saved_panel(self):
+        use_past = st.checkbox("Use a past version")
+        if use_past:
+            saved_panels = self.panel_manager.get_saved_panels()
+            if saved_panels:
+                selected_panels = st.multiselect(
+                    "Select saved panel(s) to load:",
+                    saved_panels,
+                    help="Select one or more panels. If multiple are selected, they will be merged together.",
                 )
-
-                # If less than 20% of lines have separators, treat as simple list
-                if lines and multi_value_lines / len(lines) < 0.2:
-                    # It's a simple list - create DataFrame from lines
-                    df = pd.DataFrame(lines, columns=["contributor"])
-                else:
-                    # It's likely a structured file - use load_csv with auto-detection
-                    uploaded_file.seek(0)
-                    df = load_csv(uploaded_file)
-
-                # For single-column files from auto-detection, check if first row was treated as header
-                if len(df.columns) == 1 and not df.empty:
-                    column_name = str(df.columns[0]).lower()
-                    # Common header words that indicate a proper header
-                    common_headers = {
-                        "name",
-                        "names",
-                        "contributor",
-                        "contributors",
-                        "person",
-                        "people",
-                        "author",
-                        "authors",
-                        "0",
-                        "1",
-                    }
-
-                    # If column name doesn't look like a header, try reading without header
-                    if column_name not in common_headers and not column_name.isdigit():
-                        uploaded_file.seek(0)
-                        try:
-                            df_no_header = pd.read_csv(
-                                uploaded_file, sep=None, engine="python", header=None
+                if st.button("Load Panel(s)"):
+                    if not selected_panels:
+                        st.warning("Please select at least one panel to load.")
+                    elif len(selected_panels) == 1:
+                        # Single panel - just load it
+                        panel_data = self.panel_manager.load_panel(selected_panels[0])
+                        st.session_state["panel_info"] = panel_data
+                        st.success(f"Loaded panel: {selected_panels[0]}")
+                    else:
+                        # Multiple panels - merge them
+                        if merge_panel_info_dicts is None:
+                            st.error(
+                                "The merge_panel_info_dicts function could not be imported from pmotools. "
+                                "Please ensure pmotools is installed and the function is available."
                             )
-                            # Use no-header version if it has more rows (includes the "header" row as data)
-                            if len(df_no_header) > len(df):
-                                df = df_no_header
-                                df.columns = [
-                                    f"Column_{i+1}" for i in range(len(df.columns))
+                        else:
+                            try:
+                                # Load all selected panels
+                                panel_dicts = [
+                                    self.panel_manager.load_panel(panel_name)
+                                    for panel_name in selected_panels
                                 ]
-                        except Exception:
-                            pass  # Keep the current df
+                                # Merge the panels
+                                merged_panel_data = merge_panel_info_dicts(panel_dicts)
+                                st.session_state["panel_info"] = merged_panel_data
+                                st.success(
+                                    f"Successfully merged {len(selected_panels)} panel(s): {', '.join(selected_panels)}"
+                                )
+                            except Exception as e:
+                                st.error(f"Error merging panels: {e}")
             else:
-                # For Excel files, use load_csv directly
-                df = load_csv(uploaded_file)
+                st.warning("No saved panels found.")
 
-            if df.empty:
-                st.warning("File appears to be empty or could not be parsed.")
-                return []
+    def panel_id_input(self):
+        st.subheader("Panel Name")
 
-            # If DataFrame has multiple columns, let user choose which column
-            if len(df.columns) > 1:
-                st.info(
-                    f"File contains {len(df.columns)} columns. Please select which column contains the contributor names."
+        # Get unique panel names from library_sample_info if available
+        suggested_panels = []
+        if "library_sample_info" in st.session_state:
+            library_sample_info = st.session_state["library_sample_info"]
+            try:
+                # Handle DataFrame
+                if isinstance(library_sample_info, pd.DataFrame):
+                    if "panel_name" in library_sample_info.columns:
+                        suggested_panels = sorted(
+                            library_sample_info["panel_name"].dropna().unique().tolist()
+                        )
+                # Handle dict (could be a dict representation of DataFrame or nested structure)
+                elif isinstance(library_sample_info, dict):
+                    # Check if it's a dict with 'panel_name' as a key containing a list/Series
+                    if "panel_name" in library_sample_info:
+                        panel_data = library_sample_info["panel_name"]
+                        if isinstance(panel_data, (list, pd.Series)):
+                            if isinstance(panel_data, pd.Series):
+                                suggested_panels = sorted(
+                                    panel_data.dropna().unique().tolist()
+                                )
+                            else:
+                                suggested_panels = sorted(
+                                    list(set([p for p in panel_data if p]))
+                                )
+                    # Check if values in dict are DataFrames with panel_name column
+                    else:
+                        for value in library_sample_info.values():
+                            if (
+                                isinstance(value, pd.DataFrame)
+                                and "panel_name" in value.columns
+                            ):
+                                suggested_panels.extend(
+                                    value["panel_name"].dropna().unique().tolist()
+                                )
+                        suggested_panels = sorted(list(set(suggested_panels)))
+                # Handle list of dicts
+                elif isinstance(library_sample_info, list):
+                    panel_names = [
+                        item.get("panel_name")
+                        for item in library_sample_info
+                        if isinstance(item, dict) and item.get("panel_name")
+                    ]
+                    suggested_panels = sorted(list(set(panel_names)))
+            except Exception:
+                # If extraction fails, just continue without suggestions
+                pass
+
+        # If we have suggested panels, show a selectbox with option to enter custom
+        if suggested_panels:
+            panel_options = suggested_panels + ["Enter custom panel name"]
+            selected_option = st.selectbox(
+                "Select panel name or enter custom:",
+                panel_options,
+                index=0,  # Default to first panel
+                help=f"Suggested panel names from library sample info: {', '.join(suggested_panels)}",
+            )
+
+            if selected_option == "Enter custom panel name":
+                return st.text_input(
+                    "Enter panel name:", help="Identifier name for the panel."
                 )
-                column = st.selectbox(
-                    "Choose column for contributors",
-                    df.columns,
-                    key="contributor_column",
-                )
-                contributors = df[column].dropna().astype(str).tolist()
-                # Filter out empty strings
-                contributors = [c.strip() for c in contributors if c.strip()]
-
-                # Show a preview if there are contributors
-                if contributors:
-                    st.success(
-                        f"Found {len(contributors)} contributor(s) in the selected column."
-                    )
-                    with st.expander("Preview contributors"):
-                        st.write(contributors[:10])  # Show first 10
-                        if len(contributors) > 10:
-                            st.write(f"... and {len(contributors) - 10} more")
-
-                return contributors
-
-            # If single column, use it directly (handles simple list of names)
-            elif len(df.columns) == 1:
-                contributors = df.iloc[:, 0].dropna().astype(str).tolist()
-                # Filter out empty strings and strip whitespace
-                contributors = [c.strip() for c in contributors if c.strip()]
-
-                # Show a preview if there are contributors
-                if contributors:
-                    st.success(f"Found {len(contributors)} contributor(s) in the file.")
-                    with st.expander("Preview contributors"):
-                        st.write(contributors[:10])  # Show first 10
-                        if len(contributors) > 10:
-                            st.write(f"... and {len(contributors) - 10} more")
-
-                return contributors
             else:
-                st.warning("File appears to be empty or could not be parsed.")
-                return []
-        except ValueError as e:
-            # Handle errors from load_csv (e.g., unsupported format, parsing errors)
-            st.error(f"Error reading file: {e}")
-            return []
-        except Exception as e:
-            st.error(f"Unexpected error reading file: {e}")
-            return []
-
-    def _get_contributors(self) -> List[str]:
-        """Get project contributors from user input or file upload."""
-        st.text("Project Contributors:")
-        upload_as_file = st.checkbox("Upload as file")
-
-        if upload_as_file:
-            return self._get_contributors_from_file()
+                return selected_option
         else:
-            return self._get_contributors_from_text()
+            return st.text_input(
+                "Enter panel name:", help="Identifier name for the panel."
+            )
 
-    def _add_optional_field(
-        self, field_name: str, label: str, help_text: str
-    ) -> Optional[str]:
-        """Add an optional field and return its value if provided."""
-        value = st.text_input(label, help=help_text)
-        if value and value.strip():
-            self.project_info[field_name] = value.strip()
-            return value.strip()
-        return None
-
-    def add_optional_info(self) -> None:
-        """Add optional project information fields."""
-        st.subheader("Add Optional Fields")
-
-        # BioProject accession
-        self._add_optional_field(
-            "BioProject_accession",
-            "BioProject Accession:",
-            "An SRA bioproject accession e.g. PRJNA33823.",
+    def add_genome_information(self):
+        st.subheader("Add Genome Information")
+        genome_name = st.text_input("Name:", help="Name of the genome.")
+        taxon_id = st.text_input("Taxon ID:", help="The NCBI taxonomy number.")
+        version = st.text_input("Genome Version:", help="The genome version.")
+        genome_url = st.text_input("URL:", help="A link to the genome file.")
+        gff_url = st.text_input(
+            "GFF URL (Optional):", help="A link to the genome’s annotation file"
         )
+        genome_info = {
+            "name": genome_name,
+            "taxon_id": taxon_id,
+            "url": genome_url,
+            "genome_version": version,
+        }
+        if gff_url:
+            genome_info["gff_url"] = gff_url
+        return genome_info
 
-        # Chief scientist
-        self._add_optional_field(
-            "project_collector_chief_scientist",
-            "Project Collector Chief Scientist:",
-            "Can be collection of names separated by a semicolon if multiple people involved or can just be the name of the primary person managing the specimen.",
-        )
+    def transform_and_save_data(
+        self,
+        df,
+        panel_ID,
+        field_mapping,
+        genome_info,
+        selected_optional_fields,
+        selected_additional_fields,
+    ):
+        st.subheader("Transform Data")
+        if st.button("Transform Data"):
+            # Validate required fields
+            errors = []
 
-        # Project contributors
-        project_contributors = self._get_contributors()
-        if project_contributors:
-            self.project_info["project_contributors"] = project_contributors
+            if not panel_ID or not panel_ID.strip():
+                errors.append("Panel ID is required.")
 
-        # Project type
-        self._add_optional_field(
-            "project_type",
-            "Project Type:",
-            "The type of project conducted, e.g. TES vs surveillance vs transmission.",
-        )
-
-    def add_additional_fields(self) -> None:
-        """Add custom additional fields."""
-        st.subheader("Add Additional Fields")
-
-        add_fields_toggle = st.checkbox("Add Additional Fields")
-        if not add_fields_toggle:
-            return
-
-        st.write("Fill in the additional fields below:")
-        number_inputs = st.number_input(
-            "Number of additional inputs", min_value=0, value=1, max_value=10
-        )
-
-        if number_inputs > 0:
-            self._render_additional_field_inputs(number_inputs)
-
-    def _render_additional_field_inputs(self, number_inputs: int) -> None:
-        """Render input fields for additional custom fields."""
-        cols = st.columns(2)
-
-        with cols[0]:
-            field_names = [
-                st.text_input(f"Field Name {i+1}", key=f"field_name_{i}")
-                for i in range(number_inputs)
-            ]
-        with cols[1]:
-            field_values = [
-                st.text_input(f"Value {i+1}", key=f"value_{i}")
-                for i in range(number_inputs)
-            ]
-
-        # Save the additional fields
-        for i in range(number_inputs):
-            if field_names[i] and field_values[i]:
-                self.project_info[field_names[i].strip()] = field_values[i].strip()
-
-    def _validate_required_fields(self) -> bool:
-        """Validate that all required fields are filled."""
-        return all(
-            self.project_info.get(field, "").strip() for field in REQUIRED_FIELDS
-        )
-
-    def transform_and_save_data(self) -> None:
-        """Save project data if validation passes."""
-        st.subheader("Save Data")
-        if st.button("Save Data", type="primary"):
-            if not self._validate_required_fields():
-                st.error(
-                    "Please fill in all required fields (Project Name and Description)."
+            if not field_mapping:
+                errors.append(
+                    "Field mapping is required. Please upload a file and map the fields."
                 )
-                return
 
-            st.session_state["project_info"] = [self.project_info]
-            st.success("Project information saved successfully!")
+            if not genome_info.get("name") or not genome_info["name"].strip():
+                errors.append("Genome name is required.")
 
-    def display_info(self) -> None:
-        """Display saved project information preview."""
-        if "project_info" not in st.session_state:
-            return
+            if not genome_info.get("taxon_id") or not genome_info["taxon_id"].strip():
+                errors.append("Taxon ID is required.")
 
-        st.subheader("Preview Project Information")
-        preview_toggle = st.toggle("Preview Project Information")
-        if preview_toggle:
-            st.write("Current Project Information:")
-            st.json(st.session_state["project_info"])
+            if (
+                not genome_info.get("genome_version")
+                or not genome_info["genome_version"].strip()
+            ):
+                errors.append("Genome version is required.")
 
-    def run(self) -> None:
-        """Run the complete project information page."""
-        self.add_required_project_information()
-        self.add_optional_info()
-        self.add_additional_fields()
-        self.transform_and_save_data()
-        self.display_info()
+            if not genome_info.get("url") or not genome_info["url"].strip():
+                errors.append("Genome URL is required.")
+
+            if selected_optional_fields == "Error":
+                errors.append("There was an error with the optional fields selection.")
+
+            if errors:
+                for error in errors:
+                    st.error(error)
+            else:
+                # All validations passed, proceed with transformation
+                transformed_df = transform_panel_info(
+                    df,
+                    panel_ID,
+                    field_mapping,
+                    genome_info,
+                    selected_optional_fields,
+                    selected_additional_fields,
+                )
+                st.session_state["panel_info"] = transformed_df
+                try:
+                    self.panel_manager.save_panel(panel_ID, transformed_df)
+                    st.success(f"Panel '{panel_ID}' has been saved!")
+                except Exception as e:
+                    st.error(f"Error saving panel: {e}")
+
+    def display_panel_info(self, toggle_text):
+        if session_name in st.session_state:
+            preview = st.toggle(toggle_text)
+            if preview:
+                st.write(f"Current {title}:")
+                st.json(st.session_state[session_name])
+
+    def run(self):
+        # Load past panel if applicable
+        self.load_saved_panel()
+        # Input for panel ID
+        panel_ID = self.panel_id_input()
+
+        (
+            df,
+            mapped_fields,
+            selected_optional_fields,
+            selected_additional_fields,
+        ) = load_data(
+            required_fields,
+            required_alternate_fields,
+            optional_fields,
+            optional_alternate_fields,
+        )
+
+        # Add genome information
+        genome_info = self.add_genome_information()
+
+        # Transform and save data
+        self.transform_and_save_data(
+            df,
+            panel_ID,
+            mapped_fields,
+            genome_info,
+            selected_optional_fields,
+            selected_additional_fields,
+        )
+
+        # Display current panel information
+        self.display_panel_info(f"Preview {title}")
 
 
-# Initialize and run the page
+# Initialize and run the app
 if __name__ == "__main__":
     render_header()
-    st.subheader("Project Information", divider="gray")
-    app = ProjectInfoPage()
+    st.subheader("Panel Information Converter", divider="gray")
+    schema_fields = load_schema()
+    required_fields = schema_fields["panel_info"]["required"]
+    required_alternate_fields = schema_fields["panel_info"]["required_alternatives"]
+    optional_fields = schema_fields["panel_info"]["optional"]
+    optional_alternate_fields = schema_fields["panel_info"]["optional_alternatives"]
+    app = PanelPage(
+        os.path.join(os.getcwd(), "saved_panels"),
+        required_fields,
+        required_alternate_fields,
+        optional_fields,
+        optional_alternate_fields,
+    )
+    if session_name in st.session_state:
+        st.success(
+            f"Your {title} has already been saved during a" " previous run of this page"
+        )
+        app.display_panel_info(f"Preview previously stored {title}")
+    app.run()
+`,
+                
+                "pages/6_Microhaplotype_Information.py": `import streamlit as st
+from src.format_page import render_header
+from src.field_matcher import load_data
+from src.transformer import transform_mhap_info
+from src.utils import load_schema
+
+session_name = "microhaplotype_info"
+title = "microhaplotype information"
+
+
+class MicrohaplotypeInfoPage:
+    def __init__(
+        self,
+        required_fields,
+        required_alternate_fields,
+        optional_fields,
+        optional_alternate_fields,
+    ):
+        self.required_fields = required_fields
+        self.required_alternate_fields = required_alternate_fields
+        self.optional_fields = optional_fields
+        self.optional_alternate_fields = optional_alternate_fields
+
+    def bioinfo_id_input(self, df):
+        """Get bioinformatics ID from user - either from a column or as a string."""
+        st.subheader("Bioinformatics ID")
+
+        if df is not None and not df.empty:
+            # Option to select from column or enter manually
+            input_method = st.radio(
+                "Select bioinformatics ID source:",
+                ["Select from column", "Enter manually"],
+                horizontal=True,
+                key="bioinfo_id_method",
+            )
+
+            if input_method == "Select from column":
+                column = st.selectbox(
+                    "Select column containing bioinformatics ID:",
+                    df.columns.tolist(),
+                    key="bioinfo_id_column",
+                )
+                return column
+            else:
+                return st.text_input(
+                    "Enter bioinformatics ID:",
+                    help="Identifier for the bioinformatics run.",
+                    key="bioinfo_id_text",
+                )
+        else:
+            # No file uploaded, only allow manual entry
+            return st.text_input(
+                "Enter bioinformatics ID:",
+                help="Identifier for the bioinformatics run.",
+                key="bioinfo_id_text",
+            )
+
+    def transform_and_save_data(
+        self,
+        df,
+        bioinfo_id,
+        mapped_fields,
+        selected_optional_fields,
+        selected_additional_fields,
+    ):
+        st.subheader("Transform Data")
+        if st.button("Transform Data"):
+            # Validate required fields
+            errors = []
+
+            if not bioinfo_id or (
+                isinstance(bioinfo_id, str) and not bioinfo_id.strip()
+            ):
+                errors.append("Bioinformatics ID is required.")
+
+            if not mapped_fields:
+                errors.append(
+                    "Field mapping is required. Please upload a file and map the fields."
+                )
+
+            if selected_optional_fields == "Error":
+                errors.append("There was an error with the optional fields selection.")
+
+            if errors:
+                for error in errors:
+                    st.error(error)
+            else:
+                # All validations passed, proceed with transformation
+                transformed_df = transform_mhap_info(
+                    df.astype(object) if df is not None else None,
+                    bioinfo_id,
+                    mapped_fields,
+                    selected_optional_fields,
+                    selected_additional_fields,
+                )
+                st.session_state[session_name] = transformed_df
+                try:
+                    st.success("Microhaplotype Information has been saved!")
+                except Exception as e:
+                    st.error(f"Error saving Microhaplotype Information: {e}")
+
+    def display_microhaplotype_info(self, toggle_text):
+        if session_name in st.session_state:
+            preview = st.toggle(toggle_text)
+            if preview:
+                st.write(f"Current {title}:")
+                st.json(st.session_state[session_name])
+
+    def run(self):
+        (
+            df,
+            mapped_fields,
+            selected_optional_fields,
+            selected_additional_fields,
+        ) = load_data(
+            required_fields,
+            required_alternate_fields,
+            optional_fields,
+            optional_alternate_fields,
+        )
+        # Get bioinformatics ID input
+        bioinfo_id = self.bioinfo_id_input(df)
+        # Transform and save data
+        self.transform_and_save_data(
+            df,
+            bioinfo_id,
+            mapped_fields,
+            selected_optional_fields,
+            selected_additional_fields,
+        )
+        # Display current panel information
+        self.display_microhaplotype_info(f"Preview {title}")
+
+
+if __name__ == "__main__":
+    render_header()
+    st.subheader("Microhaplotype Information Converter", divider="gray")
+    schema_fields = load_schema()
+    required_fields = schema_fields["mhap_info"]["required"]
+    required_alternate_fields = schema_fields["mhap_info"]["required_alternatives"]
+    optional_fields = schema_fields["mhap_info"]["optional"]
+    optional_alternate_fields = schema_fields["mhap_info"]["optional_alternatives"]
+    app = MicrohaplotypeInfoPage(
+        required_fields,
+        required_alternate_fields,
+        optional_fields,
+        optional_alternate_fields,
+    )
+    if session_name in st.session_state:
+        st.success(
+            f"Your {title} has already been saved during a" " previous run of this page"
+        )
+        app.display_microhaplotype_info(f"Preview previously stored {title}")
+    app.run()
+`,
+                
+                "pages/3_Library_Sample_Level_Metadata.py": `import streamlit as st
+from src.format_page import render_header
+from src.field_matcher import load_data
+from src.transformer import transform_library_sample_info
+from src.utils import load_schema
+
+session_name = "library_sample_info"
+title = "library sample level metadata"
+
+
+class LibrarySampleMetadataPageMetadataPage:
+    def __init__(
+        self,
+        required_fields,
+        required_alternate_fields,
+        optional_fields,
+        optional_alternate_fields,
+    ):
+        self.required_fields = required_fields
+        self.required_alternate_fields = required_alternate_fields
+        self.optional_fields = optional_fields
+        self.optional_alternate_fields = optional_alternate_fields
+
+    def transform_and_save_data(
+        self, df, mapped_fields, selected_optional_fields, selected_additional_fields
+    ):
+        if mapped_fields and selected_optional_fields != "Error":
+            st.subheader("Transform Data")
+            if st.button("Transform Data"):
+                transformed_df = transform_library_sample_info(
+                    df.astype(object),
+                    mapped_fields,
+                    selected_optional_fields,
+                    selected_additional_fields,
+                )
+                st.session_state["library_sample_info"] = transformed_df
+                try:
+                    st.success("Library Sample Information has been saved!")
+                except Exception as e:
+                    st.error(f"Error saving Library Sample Information: {e}")
+
+    def display_panel_info(self, toggle_text):
+        if session_name in st.session_state:
+            preview = st.toggle(toggle_text)
+            if preview:
+                st.write(f"Current {title}:")
+                st.json(st.session_state[session_name])
+
+    def run(self):
+        # File upload
+        (
+            df,
+            mapped_fields,
+            selected_optional_fields,
+            selected_additional_fields,
+        ) = load_data(
+            required_fields,
+            required_alternate_fields,
+            optional_fields,
+            optional_alternate_fields,
+        )
+        # Transform and save data
+        self.transform_and_save_data(
+            df, mapped_fields, selected_optional_fields, selected_additional_fields
+        )
+        # Display current panel information
+        self.display_panel_info(f"Preview {title}")
+
+
+if __name__ == "__main__":
+    render_header()
+    st.subheader("Library Sample Level Metadata Converter", divider="gray")
+    schema_fields = load_schema()
+    required_fields = schema_fields["library_sample_level_metadata"]["required"]
+    required_alternate_fields = schema_fields["library_sample_level_metadata"][
+        "required_alternatives"
+    ]
+    optional_fields = schema_fields["library_sample_level_metadata"]["optional"]
+    optional_alternate_fields = schema_fields["library_sample_level_metadata"][
+        "optional_alternatives"
+    ]
+    app = LibrarySampleMetadataPageMetadataPage(
+        required_fields,
+        required_alternate_fields,
+        optional_fields,
+        optional_alternate_fields,
+    )
+    if session_name in st.session_state:
+        st.success(
+            f"Your {title} has already been saved during a" " previous run of this page"
+        )
+        app.display_panel_info(f"Preview previously stored {title}")
+    app.run()
+`,
+                
+                "pages/2_Specimen_Level_Metadata.py": `import streamlit as st
+from src.format_page import render_header
+from src.field_matcher import load_data
+from src.transformer import transform_specimen_info
+from src.utils import load_schema
+
+session_name = "specimen_info"
+title = "specimen level metadata"
+
+
+class SpecimenMetadataPage:
+    def __init__(
+        self,
+        required_fields,
+        required_alternate_fields,
+        optional_fields,
+        optional_alternate_fields,
+    ):
+        self.required_fields = required_fields
+        self.required_alternate_fields = required_alternate_fields
+        self.optional_fields = optional_fields
+        self.optional_alternate_fields = optional_alternate_fields
+
+    def transform_and_save_data(
+        self, df, mapped_fields, selected_optional_fields, selected_additional_fields
+    ):
+        if mapped_fields and selected_optional_fields != "Error":
+            st.subheader("Transform Data")
+            if st.button("Transform Data"):
+                transformed_df = transform_specimen_info(
+                    df.astype(object),
+                    mapped_fields,
+                    selected_optional_fields,
+                    selected_additional_fields,
+                )
+                st.session_state[session_name] = transformed_df
+                try:
+                    st.success("Specimen Information has been saved!")
+                except Exception as e:
+                    st.error(f"Error saving Specimen Information: {e}")
+
+    def display_panel_info(self, toggle_text):
+        if session_name in st.session_state:
+            preview = st.toggle(toggle_text)
+            if preview:
+                st.write(f"Current {title}:")
+                st.json(st.session_state[session_name])
+
+    def run(self):
+        (
+            df,
+            mapped_fields,
+            selected_optional_fields,
+            selected_additional_fields,
+        ) = load_data(
+            required_fields,
+            required_alternate_fields,
+            optional_fields,
+            optional_alternate_fields,
+        )
+        # Transform and save data
+        if mapped_fields:
+            self.transform_and_save_data(
+                df, mapped_fields, selected_optional_fields, selected_additional_fields
+            )
+        # Display current panel information
+        self.display_panel_info(f"Preview {title}")
+
+
+if __name__ == "__main__":
+    render_header()
+    st.subheader("Specimen Level Metadata Converter", divider="gray")
+    schema_fields = load_schema()
+    required_fields = schema_fields["specimen_level_metadata"]["required"]
+    required_alternate_fields = schema_fields["specimen_level_metadata"][
+        "required_alternatives"
+    ]
+    optional_fields = schema_fields["specimen_level_metadata"]["optional"]
+    optional_alternate_fields = schema_fields["specimen_level_metadata"][
+        "optional_alternatives"
+    ]
+    app = SpecimenMetadataPage(
+        required_fields,
+        required_alternate_fields,
+        optional_fields,
+        optional_alternate_fields,
+    )
+    if session_name in st.session_state:
+        st.success(
+            f"Your {title} has already been saved during a" " previous run of this page"
+        )
+        app.display_panel_info(f"Preview previously stored {title}")
     app.run()
 `,
                 
@@ -1834,512 +1927,435 @@ if __name__ == "__main__":
     app.run()
 `,
                 
-                "pages/4_Panel_Information.py": `import streamlit as st
+                "pages/9_Create_Final_PMO.py": `import streamlit as st
 import json
 import os
-import pandas as pd
-from src.field_matcher import load_data
-from src.transformer import transform_panel_info
 from src.format_page import render_header
-from src.utils import load_schema
-from pmotools.pmo_builder.panel_information_to_pmo import merge_panel_info_dicts
+from pmotools.pmo_builder.merge_to_pmo import merge_to_pmo
 
-session_name = "panel_info"
-title = "panel information"
-
-
-class PanelManager:
-    def __init__(self, save_dir):
-        self.save_dir = save_dir
-
-    def check_save_dir(self):
-        """Check dir exists or create it."""
-        os.makedirs(self.save_dir, exist_ok=True)
-
-    def save_panel(self, panel_name, panel_data):
-        """Save panel data to a JSON file."""
-        with open(os.path.join(self.save_dir, f"{panel_name}.json"), "w") as f:
-            json.dump(panel_data, f)
-
-    def load_panel(self, panel_name):
-        """Load panel data from a JSON file."""
-        with open(os.path.join(self.save_dir, f"{panel_name}.json"), "r") as f:
-            return json.load(f)
-
-    def get_saved_panels(self):
-        """Get a list of saved panel names."""
-        return [
-            f.split(".json")[0]
-            for f in os.listdir(self.save_dir)
-            if f.endswith(".json")
-        ]
+check_dict = {
+    "project_info": "Project Information",
+    "specimen_info": "Specimen Level Metadata",
+    "library_sample_info": "Library Sample Level Metadata",
+    "panel_info": "Panel Information",
+    "seq_info": "Sequencing Information",
+    "microhaplotype_info": "Microhaplotype Information",
+    "bioinfo_run_infos": "Bioinformatics Runs Information",
+}
 
 
-class PanelPage:
-    def __init__(
-        self,
-        save_dir,
-        required_fields,
-        required_alternate_fields,
-        optional_fields,
-        optional_alternate_fields,
-    ):
-        self.save_dir = save_dir
-        self.panel_manager = PanelManager(self.save_dir)
-        self.panel_manager.check_save_dir()
-        self.required_fields = required_fields
-        self.required_alternate_fields = required_alternate_fields
-        self.optional_fields = optional_fields
-        self.optional_alternate_fields = optional_alternate_fields
-
-    def load_saved_panel(self):
-        use_past = st.checkbox("Use a past version")
-        if use_past:
-            saved_panels = self.panel_manager.get_saved_panels()
-            if saved_panels:
-                selected_panels = st.multiselect(
-                    "Select saved panel(s) to load:",
-                    saved_panels,
-                    help="Select one or more panels. If multiple are selected, they will be merged together.",
-                )
-                if st.button("Load Panel(s)"):
-                    if not selected_panels:
-                        st.warning("Please select at least one panel to load.")
-                    elif len(selected_panels) == 1:
-                        # Single panel - just load it
-                        panel_data = self.panel_manager.load_panel(selected_panels[0])
-                        st.session_state["panel_info"] = panel_data
-                        st.success(f"Loaded panel: {selected_panels[0]}")
-                    else:
-                        # Multiple panels - merge them
-                        if merge_panel_info_dicts is None:
-                            st.error(
-                                "The merge_panel_info_dicts function could not be imported from pmotools. "
-                                "Please ensure pmotools is installed and the function is available."
-                            )
-                        else:
-                            try:
-                                # Load all selected panels
-                                panel_dicts = [
-                                    self.panel_manager.load_panel(panel_name)
-                                    for panel_name in selected_panels
-                                ]
-                                # Merge the panels
-                                merged_panel_data = merge_panel_info_dicts(panel_dicts)
-                                st.session_state["panel_info"] = merged_panel_data
-                                st.success(
-                                    f"Successfully merged {len(selected_panels)} panel(s): {', '.join(selected_panels)}"
-                                )
-                            except Exception as e:
-                                st.error(f"Error merging panels: {e}")
-            else:
-                st.warning("No saved panels found.")
-
-    def panel_id_input(self):
-        st.subheader("Panel Name")
-
-        # Get unique panel names from library_sample_info if available
-        suggested_panels = []
-        if "library_sample_info" in st.session_state:
-            library_sample_info = st.session_state["library_sample_info"]
-            try:
-                # Handle DataFrame
-                if isinstance(library_sample_info, pd.DataFrame):
-                    if "panel_name" in library_sample_info.columns:
-                        suggested_panels = sorted(
-                            library_sample_info["panel_name"].dropna().unique().tolist()
-                        )
-                # Handle dict (could be a dict representation of DataFrame or nested structure)
-                elif isinstance(library_sample_info, dict):
-                    # Check if it's a dict with 'panel_name' as a key containing a list/Series
-                    if "panel_name" in library_sample_info:
-                        panel_data = library_sample_info["panel_name"]
-                        if isinstance(panel_data, (list, pd.Series)):
-                            if isinstance(panel_data, pd.Series):
-                                suggested_panels = sorted(
-                                    panel_data.dropna().unique().tolist()
-                                )
-                            else:
-                                suggested_panels = sorted(
-                                    list(set([p for p in panel_data if p]))
-                                )
-                    # Check if values in dict are DataFrames with panel_name column
-                    else:
-                        for value in library_sample_info.values():
-                            if (
-                                isinstance(value, pd.DataFrame)
-                                and "panel_name" in value.columns
-                            ):
-                                suggested_panels.extend(
-                                    value["panel_name"].dropna().unique().tolist()
-                                )
-                        suggested_panels = sorted(list(set(suggested_panels)))
-                # Handle list of dicts
-                elif isinstance(library_sample_info, list):
-                    panel_names = [
-                        item.get("panel_name")
-                        for item in library_sample_info
-                        if isinstance(item, dict) and item.get("panel_name")
-                    ]
-                    suggested_panels = sorted(list(set(panel_names)))
-            except Exception:
-                # If extraction fails, just continue without suggestions
-                pass
-
-        # If we have suggested panels, show a selectbox with option to enter custom
-        if suggested_panels:
-            panel_options = suggested_panels + ["Enter custom panel name"]
-            selected_option = st.selectbox(
-                "Select panel name or enter custom:",
-                panel_options,
-                index=0,  # Default to first panel
-                help=f"Suggested panel names from library sample info: {', '.join(suggested_panels)}",
-            )
-
-            if selected_option == "Enter custom panel name":
-                return st.text_input(
-                    "Enter panel name:", help="Identifier name for the panel."
-                )
-            else:
-                return selected_option
+def check_all(check_dict):
+    """
+    checks if outputs of a given page exists, and refers user to the page to
+    populate if the page doesn't exist
+    """
+    all_passed = True
+    for check_key, source_page in check_dict.items():
+        if check_key in st.session_state:
+            st.success(f"Data from {source_page} tab has been successfully loaded.")
         else:
-            return st.text_input(
-                "Enter panel name:", help="Identifier name for the panel."
+            st.error(
+                f"Data from {source_page} tab not found. Please fill out"
+                f" the {source_page} tab (the link is at the left side of this"
+                " page) before proceeding"
             )
+            all_passed = False
+    return all_passed
 
-    def add_genome_information(self):
-        st.subheader("Add Genome Information")
-        genome_name = st.text_input("Name:", help="Name of the genome.")
-        taxon_id = st.text_input("Taxon ID:", help="The NCBI taxonomy number.")
-        version = st.text_input("Genome Version:", help="The genome version.")
-        genome_url = st.text_input("URL:", help="A link to the genome file.")
-        gff_url = st.text_input(
-            "GFF URL (Optional):", help="A link to the genome’s annotation file"
-        )
-        genome_info = {
-            "name": genome_name,
-            "taxon_id": taxon_id,
-            "url": genome_url,
-            "genome_version": version,
-        }
-        if gff_url:
-            genome_info["gff_url"] = gff_url
-        return genome_info
 
-    def transform_and_save_data(
-        self,
-        df,
-        panel_ID,
-        field_mapping,
-        genome_info,
-        selected_optional_fields,
-        selected_additional_fields,
-    ):
-        st.subheader("Transform Data")
-        if st.button("Transform Data"):
-            # Validate required fields
-            errors = []
+def merge_data():
+    # MERGE DATA
+    st.subheader("Merge Components to Final PMO")
+    panel_info = st.session_state["panel_info"]
 
-            if not panel_ID or not panel_ID.strip():
-                errors.append("Panel ID is required.")
+    # Get bioinformatics methods and runs
+    bioinfo_methods = st.session_state.get("bioinfo_methods_list", [])
+    bioinfo_runs = st.session_state.get("bioinfo_run_infos", [])
+    if "read_counts_per_stage" in st.session_state:
+        read_counts_per_stage = st.session_state["read_counts_per_stage"]
+    else:
+        read_counts_per_stage = None
+    if st.button("Merge Data"):
+        try:
+            st.session_state["formatted_pmo"] = merge_to_pmo(
+                specimen_info=st.session_state["specimen_info"],
+                library_sample_info=st.session_state["library_sample_info"],
+                sequencing_info=st.session_state["seq_info"],
+                panel_info=panel_info,
+                mhap_info=st.session_state["microhaplotype_info"],
+                bioinfo_method_info=bioinfo_methods,
+                bioinfo_run_info=bioinfo_runs,
+                project_info=st.session_state["project_info"],
+                read_counts_by_stage_info=read_counts_per_stage,
+            )
+            st.success("Data merged successfully!")
+        except Exception as e:
+            st.error(f"Error merging data: {e}")
 
-            if not field_mapping:
-                errors.append(
-                    "Field mapping is required. Please upload a file and map the fields."
-                )
+    # Download button - only show if PMO has been created
+    if "formatted_pmo" in st.session_state:
+        st.subheader("Download PMO File")
 
-            if not genome_info.get("name") or not genome_info["name"].strip():
-                errors.append("Genome name is required.")
+        # Convert the PMO data to JSON string
+        pmo_json = json.dumps(st.session_state["formatted_pmo"], indent=2, default=str)
 
-            if not genome_info.get("taxon_id") or not genome_info["taxon_id"].strip():
-                errors.append("Taxon ID is required.")
-
-            if (
-                not genome_info.get("genome_version")
-                or not genome_info["genome_version"].strip()
-            ):
-                errors.append("Genome version is required.")
-
-            if not genome_info.get("url") or not genome_info["url"].strip():
-                errors.append("Genome URL is required.")
-
-            if selected_optional_fields == "Error":
-                errors.append("There was an error with the optional fields selection.")
-
-            if errors:
-                for error in errors:
-                    st.error(error)
-            else:
-                # All validations passed, proceed with transformation
-                transformed_df = transform_panel_info(
-                    df,
-                    panel_ID,
-                    field_mapping,
-                    genome_info,
-                    selected_optional_fields,
-                    selected_additional_fields,
-                )
-                st.session_state["panel_info"] = transformed_df
-                try:
-                    self.panel_manager.save_panel(panel_ID, transformed_df)
-                    st.success(f"Panel '{panel_ID}' has been saved!")
-                except Exception as e:
-                    st.error(f"Error saving panel: {e}")
-
-    def display_panel_info(self, toggle_text):
-        if session_name in st.session_state:
-            preview = st.toggle(toggle_text)
-            if preview:
-                st.write(f"Current {title}:")
-                st.json(st.session_state[session_name])
-
-    def run(self):
-        # Load past panel if applicable
-        self.load_saved_panel()
-        # Input for panel ID
-        panel_ID = self.panel_id_input()
-
-        (
-            df,
-            mapped_fields,
-            selected_optional_fields,
-            selected_additional_fields,
-        ) = load_data(
-            required_fields,
-            required_alternate_fields,
-            optional_fields,
-            optional_alternate_fields,
+        # Create download button
+        st.download_button(
+            label="Download PMO JSON File",
+            data=pmo_json,
+            file_name="pmo_data.json",
+            mime="application/json",
+            help="Download the merged PMO data as a JSON file",
         )
 
-        # Add genome information
-        genome_info = self.add_genome_information()
-
-        # Transform and save data
-        self.transform_and_save_data(
-            df,
-            panel_ID,
-            mapped_fields,
-            genome_info,
-            selected_optional_fields,
-            selected_additional_fields,
-        )
-
-        # Display current panel information
-        self.display_panel_info(f"Preview {title}")
+        # Optional: Show preview of the data
+        with st.expander("Preview PMO Data"):
+            st.json(st.session_state["formatted_pmo"])
 
 
 # Initialize and run the app
 if __name__ == "__main__":
+    current_directory = os.getcwd()  # Get the current working directory
+    SAVE_DIR = os.path.join(current_directory, "finished_PMO_files")
+    os.makedirs(SAVE_DIR, exist_ok=True)
     render_header()
-    st.subheader("Panel Information Converter", divider="gray")
-    schema_fields = load_schema()
-    required_fields = schema_fields["panel_info"]["required"]
-    required_alternate_fields = schema_fields["panel_info"]["required_alternatives"]
-    optional_fields = schema_fields["panel_info"]["optional"]
-    optional_alternate_fields = schema_fields["panel_info"]["optional_alternatives"]
-    app = PanelPage(
-        os.path.join(os.getcwd(), "saved_panels"),
-        required_fields,
-        required_alternate_fields,
-        optional_fields,
-        optional_alternate_fields,
-    )
-    if session_name in st.session_state:
-        st.success(
-            f"Your {title} has already been saved during a" " previous run of this page"
-        )
-        app.display_panel_info(f"Preview previously stored {title}")
-    app.run()
+    st.subheader("Create Final PMO", divider="gray")
+    st.subheader("Components")
+    if check_all(check_dict):
+        merge_data()
 `,
                 
-                "pages/2_Specimen_Level_Metadata.py": `import streamlit as st
+                "pages/1_Project_Information.py": `import streamlit as st
+import pandas as pd
+from typing import Dict, List, Optional, Any
 from src.format_page import render_header
-from src.field_matcher import load_data
-from src.transformer import transform_specimen_info
-from src.utils import load_schema
+from src.data_loader import load_csv
 
-session_name = "specimen_info"
-title = "specimen level metadata"
+# Constants
+REQUIRED_FIELDS = ["project_name", "project_description"]
+SEPARATOR_OPTIONS = {"newline": "\\n", ",": ",", "tab": "\\t"}
+SUPPORTED_FILE_TYPES = ["csv", "tsv", "txt", "xlsx", "xls"]
 
 
-class SpecimenMetadataPage:
-    def __init__(
-        self,
-        required_fields,
-        required_alternate_fields,
-        optional_fields,
-        optional_alternate_fields,
-    ):
-        self.required_fields = required_fields
-        self.required_alternate_fields = required_alternate_fields
-        self.optional_fields = optional_fields
-        self.optional_alternate_fields = optional_alternate_fields
+class ProjectInfoPage:
+    """Handles project information collection and management."""
 
-    def transform_and_save_data(
-        self, df, mapped_fields, selected_optional_fields, selected_additional_fields
-    ):
-        if mapped_fields and selected_optional_fields != "Error":
-            st.subheader("Transform Data")
-            if st.button("Transform Data"):
-                transformed_df = transform_specimen_info(
-                    df.astype(object),
-                    mapped_fields,
-                    selected_optional_fields,
-                    selected_additional_fields,
-                )
-                st.session_state[session_name] = transformed_df
-                try:
-                    st.success("Specimen Information has been saved!")
-                except Exception as e:
-                    st.error(f"Error saving Specimen Information: {e}")
+    def __init__(self) -> None:
+        """Initialize the project info page."""
+        self.project_info: Dict[str, Any] = {}
 
-    def display_panel_info(self, toggle_text):
-        if session_name in st.session_state:
-            preview = st.toggle(toggle_text)
-            if preview:
-                st.write(f"Current {title}:")
-                st.json(st.session_state[session_name])
+    def add_required_project_information(self) -> None:
+        """Add required project information fields."""
+        st.subheader("Add Project Information")
 
-    def run(self):
-        (
-            df,
-            mapped_fields,
-            selected_optional_fields,
-            selected_additional_fields,
-        ) = load_data(
-            required_fields,
-            required_alternate_fields,
-            optional_fields,
-            optional_alternate_fields,
+        self.project_info["project_name"] = st.text_input(
+            "Project Name:", help="A unique identifier for this project."
         )
-        # Transform and save data
-        if mapped_fields:
-            self.transform_and_save_data(
-                df, mapped_fields, selected_optional_fields, selected_additional_fields
+        self.project_info["project_description"] = st.text_input(
+            "Project Description:", help="A short description of the project."
+        )
+
+    def _get_contributors_from_text(self) -> List[str]:
+        """Get contributors from text input."""
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            contributors = st.text_area(
+                "",
+                help="List collaborators separated by tab, comma, or newline "
+                "(e.g., Alice  Bob Tony)",
             )
-        # Display current panel information
-        self.display_panel_info(f"Preview {title}")
+        with col2:
+            sep = st.selectbox("Separator", SEPARATOR_OPTIONS.keys())
+
+        if contributors:
+            return [
+                c.strip()
+                for c in contributors.split(SEPARATOR_OPTIONS[sep])
+                if c.strip()
+            ]
+        return []
+
+    def _get_contributors_from_file(self) -> List[str]:
+        """Get contributors from uploaded file.
+
+        Handles two cases:
+        1. Simple list: File with one name per line (with or without header)
+        2. Table: File with multiple columns, user selects which column to use
+        """
+        uploaded_file = st.file_uploader(
+            "Upload a CSV, TSV, TXT, or Excel file", type=SUPPORTED_FILE_TYPES
+        )
+        if not uploaded_file:
+            return []
+
+        try:
+            # Reset file pointer to beginning in case it was read before
+            uploaded_file.seek(0)
+
+            # For text-based files, check if it's a simple list first
+            # Excel files are always read with header assumption
+            is_text_file = uploaded_file.name.endswith((".csv", ".tsv", ".txt"))
+
+            if is_text_file:
+                # Read file content to check if it's a simple list (one value per line)
+                uploaded_file.seek(0)
+                content = uploaded_file.read().decode("utf-8")
+                lines = [line.strip() for line in content.split("\\n") if line.strip()]
+
+                # Check if this looks like a simple list (each line has one value, no commas/tabs in most lines)
+                # Count lines that look like they have multiple values (contain comma or tab)
+                multi_value_lines = sum(
+                    1 for line in lines if "," in line or "\\t" in line
+                )
+
+                # If less than 20% of lines have separators, treat as simple list
+                if lines and multi_value_lines / len(lines) < 0.2:
+                    # It's a simple list - create DataFrame from lines
+                    df = pd.DataFrame(lines, columns=["contributor"])
+                else:
+                    # It's likely a structured file - use load_csv with auto-detection
+                    uploaded_file.seek(0)
+                    df = load_csv(uploaded_file)
+
+                # For single-column files from auto-detection, check if first row was treated as header
+                if len(df.columns) == 1 and not df.empty:
+                    column_name = str(df.columns[0]).lower()
+                    # Common header words that indicate a proper header
+                    common_headers = {
+                        "name",
+                        "names",
+                        "contributor",
+                        "contributors",
+                        "person",
+                        "people",
+                        "author",
+                        "authors",
+                        "0",
+                        "1",
+                    }
+
+                    # If column name doesn't look like a header, try reading without header
+                    if column_name not in common_headers and not column_name.isdigit():
+                        uploaded_file.seek(0)
+                        try:
+                            df_no_header = pd.read_csv(
+                                uploaded_file, sep=None, engine="python", header=None
+                            )
+                            # Use no-header version if it has more rows (includes the "header" row as data)
+                            if len(df_no_header) > len(df):
+                                df = df_no_header
+                                df.columns = [
+                                    f"Column_{i+1}" for i in range(len(df.columns))
+                                ]
+                        except Exception:
+                            pass  # Keep the current df
+            else:
+                # For Excel files, use load_csv directly
+                df = load_csv(uploaded_file)
+
+            if df.empty:
+                st.warning("File appears to be empty or could not be parsed.")
+                return []
+
+            # If DataFrame has multiple columns, let user choose which column
+            if len(df.columns) > 1:
+                st.info(
+                    f"File contains {len(df.columns)} columns. Please select which column contains the contributor names."
+                )
+                column = st.selectbox(
+                    "Choose column for contributors",
+                    df.columns,
+                    key="contributor_column",
+                )
+                contributors = df[column].dropna().astype(str).tolist()
+                # Filter out empty strings
+                contributors = [c.strip() for c in contributors if c.strip()]
+
+                # Show a preview if there are contributors
+                if contributors:
+                    st.success(
+                        f"Found {len(contributors)} contributor(s) in the selected column."
+                    )
+                    with st.expander("Preview contributors"):
+                        st.write(contributors[:10])  # Show first 10
+                        if len(contributors) > 10:
+                            st.write(f"... and {len(contributors) - 10} more")
+
+                return contributors
+
+            # If single column, use it directly (handles simple list of names)
+            elif len(df.columns) == 1:
+                contributors = df.iloc[:, 0].dropna().astype(str).tolist()
+                # Filter out empty strings and strip whitespace
+                contributors = [c.strip() for c in contributors if c.strip()]
+
+                # Show a preview if there are contributors
+                if contributors:
+                    st.success(f"Found {len(contributors)} contributor(s) in the file.")
+                    with st.expander("Preview contributors"):
+                        st.write(contributors[:10])  # Show first 10
+                        if len(contributors) > 10:
+                            st.write(f"... and {len(contributors) - 10} more")
+
+                return contributors
+            else:
+                st.warning("File appears to be empty or could not be parsed.")
+                return []
+        except ValueError as e:
+            # Handle errors from load_csv (e.g., unsupported format, parsing errors)
+            st.error(f"Error reading file: {e}")
+            return []
+        except Exception as e:
+            st.error(f"Unexpected error reading file: {e}")
+            return []
+
+    def _get_contributors(self) -> List[str]:
+        """Get project contributors from user input or file upload."""
+        st.text("Project Contributors:")
+        upload_as_file = st.checkbox("Upload as file")
+
+        if upload_as_file:
+            return self._get_contributors_from_file()
+        else:
+            return self._get_contributors_from_text()
+
+    def _add_optional_field(
+        self, field_name: str, label: str, help_text: str
+    ) -> Optional[str]:
+        """Add an optional field and return its value if provided."""
+        value = st.text_input(label, help=help_text)
+        if value and value.strip():
+            self.project_info[field_name] = value.strip()
+            return value.strip()
+        return None
+
+    def add_optional_info(self) -> None:
+        """Add optional project information fields."""
+        st.subheader("Add Optional Fields")
+
+        # BioProject accession
+        self._add_optional_field(
+            "BioProject_accession",
+            "BioProject Accession:",
+            "An SRA bioproject accession e.g. PRJNA33823.",
+        )
+
+        # Chief scientist
+        self._add_optional_field(
+            "project_collector_chief_scientist",
+            "Project Collector Chief Scientist:",
+            "Can be collection of names separated by a semicolon if multiple people involved or can just be the name of the primary person managing the specimen.",
+        )
+
+        # Project contributors
+        project_contributors = self._get_contributors()
+        if project_contributors:
+            self.project_info["project_contributors"] = project_contributors
+
+        # Project type
+        self._add_optional_field(
+            "project_type",
+            "Project Type:",
+            "The type of project conducted, e.g. TES vs surveillance vs transmission.",
+        )
+
+    def add_additional_fields(self) -> None:
+        """Add custom additional fields."""
+        st.subheader("Add Additional Fields")
+
+        add_fields_toggle = st.checkbox("Add Additional Fields")
+        if not add_fields_toggle:
+            return
+
+        st.write("Fill in the additional fields below:")
+        number_inputs = st.number_input(
+            "Number of additional inputs", min_value=0, value=1, max_value=10
+        )
+
+        if number_inputs > 0:
+            self._render_additional_field_inputs(number_inputs)
+
+    def _render_additional_field_inputs(self, number_inputs: int) -> None:
+        """Render input fields for additional custom fields."""
+        cols = st.columns(2)
+
+        with cols[0]:
+            field_names = [
+                st.text_input(f"Field Name {i+1}", key=f"field_name_{i}")
+                for i in range(number_inputs)
+            ]
+        with cols[1]:
+            field_values = [
+                st.text_input(f"Value {i+1}", key=f"value_{i}")
+                for i in range(number_inputs)
+            ]
+
+        # Save the additional fields
+        for i in range(number_inputs):
+            if field_names[i] and field_values[i]:
+                self.project_info[field_names[i].strip()] = field_values[i].strip()
+
+    def _validate_required_fields(self) -> bool:
+        """Validate that all required fields are filled."""
+        return all(
+            self.project_info.get(field, "").strip() for field in REQUIRED_FIELDS
+        )
+
+    def transform_and_save_data(self) -> None:
+        """Save project data if validation passes."""
+        st.subheader("Save Data")
+        if st.button("Save Data", type="primary"):
+            if not self._validate_required_fields():
+                st.error(
+                    "Please fill in all required fields (Project Name and Description)."
+                )
+                return
+
+            st.session_state["project_info"] = [self.project_info]
+            st.success("Project information saved successfully!")
+
+    def display_info(self) -> None:
+        """Display saved project information preview."""
+        if "project_info" not in st.session_state:
+            return
+
+        st.subheader("Preview Project Information")
+        preview_toggle = st.toggle("Preview Project Information")
+        if preview_toggle:
+            st.write("Current Project Information:")
+            st.json(st.session_state["project_info"])
+
+    def run(self) -> None:
+        """Run the complete project information page."""
+        self.add_required_project_information()
+        self.add_optional_info()
+        self.add_additional_fields()
+        self.transform_and_save_data()
+        self.display_info()
 
 
+# Initialize and run the page
 if __name__ == "__main__":
     render_header()
-    st.subheader("Specimen Level Metadata Converter", divider="gray")
-    schema_fields = load_schema()
-    required_fields = schema_fields["specimen_level_metadata"]["required"]
-    required_alternate_fields = schema_fields["specimen_level_metadata"][
-        "required_alternatives"
-    ]
-    optional_fields = schema_fields["specimen_level_metadata"]["optional"]
-    optional_alternate_fields = schema_fields["specimen_level_metadata"][
-        "optional_alternatives"
-    ]
-    app = SpecimenMetadataPage(
-        required_fields,
-        required_alternate_fields,
-        optional_fields,
-        optional_alternate_fields,
-    )
-    if session_name in st.session_state:
-        st.success(
-            f"Your {title} has already been saved during a" " previous run of this page"
-        )
-        app.display_panel_info(f"Preview previously stored {title}")
+    st.subheader("Project Information", divider="gray")
+    app = ProjectInfoPage()
     app.run()
 `,
                 
-                "pages/3_Library_Sample_Level_Metadata.py": `import streamlit as st
-from src.format_page import render_header
-from src.field_matcher import load_data
-from src.transformer import transform_library_sample_info
-from src.utils import load_schema
-
-session_name = "library_sample_info"
-title = "library sample level metadata"
+                "src/utils.py": `import json
 
 
-class LibrarySampleMetadataPageMetadataPage:
-    def __init__(
-        self,
-        required_fields,
-        required_alternate_fields,
-        optional_fields,
-        optional_alternate_fields,
-    ):
-        self.required_fields = required_fields
-        self.required_alternate_fields = required_alternate_fields
-        self.optional_fields = optional_fields
-        self.optional_alternate_fields = optional_alternate_fields
-
-    def transform_and_save_data(
-        self, df, mapped_fields, selected_optional_fields, selected_additional_fields
-    ):
-        if mapped_fields and selected_optional_fields != "Error":
-            st.subheader("Transform Data")
-            if st.button("Transform Data"):
-                transformed_df = transform_library_sample_info(
-                    df.astype(object),
-                    mapped_fields,
-                    selected_optional_fields,
-                    selected_additional_fields,
-                )
-                st.session_state["library_sample_info"] = transformed_df
-                try:
-                    st.success("Library Sample Information has been saved!")
-                except Exception as e:
-                    st.error(f"Error saving Library Sample Information: {e}")
-
-    def display_panel_info(self, toggle_text):
-        if session_name in st.session_state:
-            preview = st.toggle(toggle_text)
-            if preview:
-                st.write(f"Current {title}:")
-                st.json(st.session_state[session_name])
-
-    def run(self):
-        # File upload
-        (
-            df,
-            mapped_fields,
-            selected_optional_fields,
-            selected_additional_fields,
-        ) = load_data(
-            required_fields,
-            required_alternate_fields,
-            optional_fields,
-            optional_alternate_fields,
-        )
-        # Transform and save data
-        self.transform_and_save_data(
-            df, mapped_fields, selected_optional_fields, selected_additional_fields
-        )
-        # Display current panel information
-        self.display_panel_info(f"Preview {title}")
+def save_to_csv(df, output_path):
+    """Save a DataFrame to a CSV file."""
+    df.to_csv(output_path, index=False)
+    return output_path
 
 
-if __name__ == "__main__":
-    render_header()
-    st.subheader("Library Sample Level Metadata Converter", divider="gray")
-    schema_fields = load_schema()
-    required_fields = schema_fields["library_sample_level_metadata"]["required"]
-    required_alternate_fields = schema_fields["library_sample_level_metadata"][
-        "required_alternatives"
-    ]
-    optional_fields = schema_fields["library_sample_level_metadata"]["optional"]
-    optional_alternate_fields = schema_fields["library_sample_level_metadata"][
-        "optional_alternatives"
-    ]
-    app = LibrarySampleMetadataPageMetadataPage(
-        required_fields,
-        required_alternate_fields,
-        optional_fields,
-        optional_alternate_fields,
-    )
-    if session_name in st.session_state:
-        st.success(
-            f"Your {title} has already been saved during a" " previous run of this page"
-        )
-        app.display_panel_info(f"Preview previously stored {title}")
-    app.run()
+def load_schema():
+    # Load schema field names from JSON
+    with open("conf/schema.json", "r") as file:
+        schema_fields = json.load(file)
+    return schema_fields
 `,
                 
                 "src/field_matcher.py": `from fuzzywuzzy import process
@@ -2657,26 +2673,7 @@ def load_data(
     return df, mapped_fields, selected_optional_fields, selected_additional_fields
 `,
                 
-                "src/data_loader.py": `import pandas as pd
-
-
-def load_csv(file):
-    """Load a CSV file into a pandas DataFrame with automatic separator detection."""
-    try:
-        if file.name.endswith((".csv", ".tsv", ".txt")):
-            # Use pandas' automatic separator detection
-            df = pd.read_csv(file, sep=None, engine="python")
-        elif file.name.endswith((".xlsx", ".xls")):
-            df = pd.read_excel(file)
-        else:
-            raise ValueError(
-                "Unsupported file format. Please upload a CSV, TSV, or Excel file."
-            )
-        return df
-
-    except Exception as e:
-        raise ValueError(f"Failed to read CSV: {e}")
-`,
+                "src/__init__.py": ``,
                 
                 "src/format_page.py": `"""
 Format page utilities for the PMO Builder application.
@@ -2825,24 +2822,6 @@ def render_centered_content(content: str, content_type: str = "markdown") -> Non
             st.code(content)
         else:
             st.markdown(content)  # Default to markdown
-`,
-                
-                "src/__init__.py": ``,
-                
-                "src/utils.py": `import json
-
-
-def save_to_csv(df, output_path):
-    """Save a DataFrame to a CSV file."""
-    df.to_csv(output_path, index=False)
-    return output_path
-
-
-def load_schema():
-    # Load schema field names from JSON
-    with open("conf/schema.json", "r") as file:
-        schema_fields = json.load(file)
-    return schema_fields
 `,
                 
                 "src/transformer.py": `from pmotools.pmo_builder.mhap_table_to_pmo import mhap_table_to_pmo
@@ -3021,6 +3000,27 @@ def transform_read_counts_per_stage(
         additional_target_cols=reads_by_stage_selected_additional_fields,
     )
     return transformed_df
+`,
+                
+                "src/data_loader.py": `import pandas as pd
+
+
+def load_csv(file):
+    """Load a CSV file into a pandas DataFrame with automatic separator detection."""
+    try:
+        if file.name.endswith((".csv", ".tsv", ".txt")):
+            # Use pandas' automatic separator detection
+            df = pd.read_csv(file, sep=None, engine="python")
+        elif file.name.endswith((".xlsx", ".xls")):
+            df = pd.read_excel(file)
+        else:
+            raise ValueError(
+                "Unsupported file format. Please upload a CSV, TSV, or Excel file."
+            )
+        return df
+
+    except Exception as e:
+        raise ValueError(f"Failed to read CSV: {e}")
 `,
                 
                 "images/PMO_logo.png": {'url': 'images/PMO_logo.png'},
