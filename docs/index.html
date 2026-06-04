@@ -19,7 +19,7 @@
       import { mount } from "https://cdn.jsdelivr.net/npm/@stlite/browser@1.2.0/build/stlite.js";
       mount(
         {
-            "requirements": ['pandas', 'fuzzywuzzy', 'openpyxl', 'pmotools'],
+            "requirements": ['fuzzywuzzy==0.18.0', 'numpy==2.2.5', 'openpyxl==3.1.5', 'pandas==2.3.1', 'pmotools==1.0.0'],
             "entrypoint": "PMO_Builder.py",
             "files": {
                 
@@ -66,7 +66,18 @@ def sample_field_mapping():
     }
 `,
                 
-                "PMO_Builder.py": `import streamlit as st
+                "PMO_Builder.py": `import importlib.metadata
+
+def _log_installed_package_versions():
+    for pkg in ('fuzzywuzzy', 'numpy', 'openpyxl', 'pandas', 'pmotools'):
+        try:
+            print(f"[pmo-deps] {pkg}=={importlib.metadata.version(pkg)}", flush=True)
+        except importlib.metadata.PackageNotFoundError:
+            print(f"[pmo-deps] {pkg}: not installed", flush=True)
+
+_log_installed_package_versions()
+
+import streamlit as st
 from src.format_page import render_header
 
 
@@ -733,7 +744,7 @@ from src.data_loader import load_csv
 
 # Constants
 REQUIRED_FIELDS = ["project_name", "project_description"]
-SEPARATOR_OPTIONS = {"newline": "\\\n", ",": ",", "tab": "\\\t"}
+SEPARATOR_OPTIONS = {"newline": "\\n", ",": ",", "tab": "\\t"}
 SUPPORTED_FILE_TYPES = ["csv", "tsv", "txt", "xlsx", "xls"]
 
 
@@ -800,12 +811,12 @@ class ProjectInfoPage:
                 # Read file content to check if it's a simple list (one value per line)
                 uploaded_file.seek(0)
                 content = uploaded_file.read().decode("utf-8")
-                lines = [line.strip() for line in content.split("\\\n") if line.strip()]
+                lines = [line.strip() for line in content.split("\\n") if line.strip()]
 
                 # Check if this looks like a simple list (each line has one value, no commas/tabs in most lines)
                 # Count lines that look like they have multiple values (contain comma or tab)
                 multi_value_lines = sum(
-                    1 for line in lines if "," in line or "\\\t" in line
+                    1 for line in lines if "," in line or "\\t" in line
                 )
 
                 # If less than 20% of lines have separators, treat as simple list
