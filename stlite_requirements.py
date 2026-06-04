@@ -18,12 +18,14 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 import tomllib
 import urllib.request
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent
-PYPROJECT = REPO_ROOT / "pmotools-app" / "pyproject.toml"
+PMOTOOLS_APP = REPO_ROOT / "pmotools-app"
+PYPROJECT = PMOTOOLS_APP / "pyproject.toml"
 UV_LOCK = REPO_ROOT / "pmotools-app" / "uv.lock"
 LOCK_CACHE_DIR = REPO_ROOT / "pyodide-lock-cache"
 
@@ -142,10 +144,26 @@ def resolve_stlite_requirements(
     return requirements, warnings
 
 
-def version_log_snippet() -> str:
+def pmotools_app_commit_hash() -> str:
+    """Return the checked-out pmotools-app submodule commit, or 'unknown'."""
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(PMOTOOLS_APP), "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return result.stdout.strip()
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        return "unknown"
+
+
+def version_log_snippet(*, pmotools_app_commit: str) -> str:
     names = stlite_package_names()
     pkg_tuple = ", ".join(repr(n) for n in names)
     return f'''\
+print("[pmo-build] pmotools-app={pmotools_app_commit}", flush=True)
+
 import importlib.metadata
 
 def _log_installed_package_versions():

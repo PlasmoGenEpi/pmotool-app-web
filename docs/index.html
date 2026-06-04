@@ -66,7 +66,9 @@ def sample_field_mapping():
     }
 `,
                 
-                "PMO_Builder.py": `import importlib.metadata
+                "PMO_Builder.py": `print("[pmo-build] pmotools-app=aae15f0ed4db907ef567c56f9f629632d4a9d4be", flush=True)
+
+import importlib.metadata
 
 def _log_installed_package_versions():
     for pkg in ('fuzzywuzzy', 'numpy', 'openpyxl', 'pandas', 'pmotools'):

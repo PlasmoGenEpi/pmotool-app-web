@@ -5,6 +5,7 @@ import tokenize
 import io
 
 from stlite_requirements import (
+    pmotools_app_commit_hash,
     pyodide_lock_url,
     resolve_stlite_requirements,
     version_log_snippet,
@@ -18,7 +19,8 @@ _PYODIDE_VERSION = "0.28.2"
 _PYODIDE_LOCK_URL = pyodide_lock_url(_PYODIDE_VERSION)
 
 requirements, _requirement_warnings = resolve_stlite_requirements(_PYODIDE_VERSION)
-_VERSION_LOG_SNIPPET = version_log_snippet()
+_PMOTOOLS_APP_COMMIT = pmotools_app_commit_hash()
+_VERSION_LOG_SNIPPET = version_log_snippet(pmotools_app_commit=_PMOTOOLS_APP_COMMIT)
 
 entrypoint = "PMO_Builder.py"
 build_dir = "docs"
@@ -142,6 +144,7 @@ def build_site():
 
 if __name__ == "__main__":
     print(f"Stlite @{_STLITE_BROWSER_VERSION} / Pyodide v{_PYODIDE_VERSION}")
+    print(f"pmotools-app: {_PMOTOOLS_APP_COMMIT}")
     print(f"Lockfile: {_PYODIDE_LOCK_URL}")
     print("Requirements (from pmotools-app/pyproject.toml):")
     for req in requirements:
