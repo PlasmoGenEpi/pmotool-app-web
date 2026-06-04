@@ -1,0 +1,67 @@
+name: Rebuild site
+
+on:
+  workflow_dispatch:
+    inputs:
+      update_submodule:
+        description: Update pmotools-app submodule to latest remote commit
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update pmotools-app submodule
+        if: inputs.update_submodule
+        run: git submodule update --init --remote pmotools-app
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Build site
+        run: uv run python build_site.py
+
+      - name: Commit and push rebuilt site
+        env:
+          UPDATE_SUBMODULE: ${{ inputs.update_submodule }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add docs/
+          if [ "$UPDATE_SUBMODULE" = "true" ]; then
+            git add pmotools-app
+          fi
+
+          if git diff --staged --quiet; then
+            echo "No changes to commit; site is already up to date."
+            exit 0
+          fi
+
+          if [ "$UPDATE_SUBMODULE" = "true" ]; then
+            msg="Rebuild site (update pmotools-app submodule)"
+          else
+            msg="Rebuild site"
+          fi
+
+          git commit -m "$msg"
+          git push
