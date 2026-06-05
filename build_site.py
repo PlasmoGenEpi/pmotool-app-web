@@ -23,6 +23,29 @@ _COMMIT_LOG_SNIPPET = submodule_commit_log_snippet(pmotools_app_commit=_PMOTOOLS
 entrypoint = "PMO_Builder.py"
 build_dir = "docs"
 
+# GitHub Pages serves 404.html for unknown paths (e.g. Streamlit page URLs).
+_404_HTML = """<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Redirecting…</title>
+    <script>
+      (function () {
+        var base = "/";
+        if (location.hostname.endsWith("github.io")) {
+          var segment = location.pathname.split("/").filter(Boolean)[0];
+          if (segment) {
+            base = "/" + segment + "/";
+          }
+        }
+        location.replace(base);
+      })();
+    </script>
+  </head>
+  <body></body>
+</html>
+"""
+
 _STATIC_ASSET_SKIP_PREFIXES = (".", "~$")
 
 
@@ -106,18 +129,18 @@ def build_site():
                     parsed_files.append({"name": file_name, "content": json.dumps(f.read())})
 
 
+    parsed_files.sort(key=lambda item: item["name"])
+
     # Render the template
     rendered = template.render(files=parsed_files, requirements=requirements, entrypoint=entrypoint)
 
     # Write the rendered template to the output file
     os.makedirs(build_dir, exist_ok=True)
-    index_path = os.path.join(build_dir, "index.html")
-    with open(index_path, "w") as f:
+    with open(os.path.join(build_dir, "index.html"), "w") as f:
         f.write(rendered)
 
-    # GitHub Pages serves 404.html for unknown paths. Copy index.html so
-    # Streamlit page URLs (e.g. /Panel_Information) load the app on refresh.
-    shutil.copy(index_path, os.path.join(build_dir, "404.html"))
+    with open(os.path.join(build_dir, "404.html"), "w") as f:
+        f.write(_404_HTML)
 
 
 if __name__ == "__main__":
