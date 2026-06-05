@@ -47,10 +47,6 @@ def read_pyproject_dependencies() -> list[tuple[str, str]]:
     return deps
 
 
-def stlite_package_names() -> list[str]:
-    return [name for name, _ in read_pyproject_dependencies() if name not in STLITE_EXCLUDED]
-
-
 def version_from_uv_lock(package: str) -> str | None:
     if not UV_LOCK.exists():
         return None
@@ -158,21 +154,8 @@ def pmotools_app_commit_hash() -> str:
         return "unknown"
 
 
-def version_log_snippet(*, pmotools_app_commit: str) -> str:
-    names = stlite_package_names()
-    pkg_tuple = ", ".join(repr(n) for n in names)
-    return f'''\
-print("[pmo-build] pmotools-app={pmotools_app_commit}", flush=True)
-
-import importlib.metadata
-
-def _log_installed_package_versions():
-    for pkg in ({pkg_tuple}):
-        try:
-            print(f"[pmo-deps] {{pkg}}=={{importlib.metadata.version(pkg)}}", flush=True)
-        except importlib.metadata.PackageNotFoundError:
-            print(f"[pmo-deps] {{pkg}}: not installed", flush=True)
-
-_log_installed_package_versions()
-
-'''
+def submodule_commit_log_snippet(*, pmotools_app_commit: str) -> str:
+    """Injected at app startup so the browser console shows the bundled submodule SHA."""
+    return (
+        f'print("[pmo-build] pmotools-app={pmotools_app_commit}", flush=True)\n\n'
+    )

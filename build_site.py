@@ -1,14 +1,13 @@
+import json
 import jinja2
 import os
 import shutil
-import tokenize
-import io
+import sys
 
 from stlite_requirements import (
     pmotools_app_commit_hash,
-    pyodide_lock_url,
     resolve_stlite_requirements,
-    version_log_snippet,
+    submodule_commit_log_snippet,
 )
 
 # Must match template.jinja (@stlite/browser version).
@@ -16,76 +15,48 @@ from stlite_requirements import (
 _STLITE_BROWSER_VERSION = "1.2.0"
 # @stlite/browser@1.2.0 loads this Pyodide release (stlite packages/kernel/src/worker.ts).
 _PYODIDE_VERSION = "0.28.2"
-_PYODIDE_LOCK_URL = pyodide_lock_url(_PYODIDE_VERSION)
 
 requirements, _requirement_warnings = resolve_stlite_requirements(_PYODIDE_VERSION)
 _PMOTOOLS_APP_COMMIT = pmotools_app_commit_hash()
-_VERSION_LOG_SNIPPET = version_log_snippet(pmotools_app_commit=_PMOTOOLS_APP_COMMIT)
+_COMMIT_LOG_SNIPPET = submodule_commit_log_snippet(pmotools_app_commit=_PMOTOOLS_APP_COMMIT)
 
 entrypoint = "PMO_Builder.py"
 build_dir = "docs"
 
-def escape_python_strings(content):
-    """Replace literal "\n" (backslash+n) with "\\n" (backslash+backslash+n) inside string literals.
-    
-    Only replaces the two-character sequence \n (and \t) that appear inside
-    Python string literals, converting them to \\n (and \\t).
-    Does not modify structural newlines (line breaks) in the source code.
-    """
-    try:
-        # Tokenize the Python code to identify string literals
-        tokens = list(tokenize.generate_tokens(io.StringIO(content).readline))
-        
-        # Convert content to list of lines for easier manipulation
-        lines = content.split('\n')
-        
-        # Process tokens in reverse order to maintain positions
-        # (reverse order so earlier replacements don't affect later positions)
-        for token in reversed(tokens):
-            token_type, token_string, start, end, _ = token
-            
-            # Only process string literals
-            if token_type == tokenize.STRING:
-                # Extract the raw string content from source (between the quotes)
-                # Get the exact substring from the source code
-                if start[0] == end[0]:
-                    # Single line string
-                    line = lines[start[0] - 1]
-                    raw_string = line[start[1]:end[1]]
-                else:
-                    # Multi-line string
-                    raw_string = lines[start[0] - 1][start[1]:]
-                    for i in range(start[0], end[0] - 1):
-                        raw_string += '\n' + lines[i]
-                    raw_string += '\n' + lines[end[0] - 1][:end[1]]
-                
-                # Replace \n with \\n and \t with \\t within the string literal content
-                # We need to replace the literal two-character sequences
-                modified_string = raw_string.replace('\\n', '\\\\n').replace('\\t', '\\\\t')
-                
-                # Replace the original string in the content
-                if start[0] == end[0]:
-                    # Single line string
-                    lines[start[0] - 1] = line[:start[1]] + modified_string + line[end[1]:]
-                else:
-                    # Multi-line string
-                    modified_lines = modified_string.split('\n')
-                    # Replace first line
-                    lines[start[0] - 1] = lines[start[0] - 1][:start[1]] + modified_lines[0]
-                    # Replace middle lines
-                    for i in range(1, len(modified_lines) - 1):
-                        if start[0] - 1 + i < len(lines):
-                            lines[start[0] - 1 + i] = modified_lines[i]
-                    # Replace last line
-                    if len(modified_lines) > 1:
-                        lines[end[0] - 1] = modified_lines[-1] + lines[end[0] - 1][end[1]:]
-        
-        return '\n'.join(lines)
-    
-    except (tokenize.TokenError, SyntaxError):
-        # If tokenization fails (e.g., incomplete code), fall back to no replacement
-        # This shouldn't happen for valid Python files, but provides a safety net
-        return content
+_STATIC_ASSET_SKIP_PREFIXES = (".", "~$")
+
+
+def _should_skip_static_asset(filename: str) -> bool:
+    return any(filename.startswith(prefix) for prefix in _STATIC_ASSET_SKIP_PREFIXES)
+
+
+def _add_url_mounted_assets(
+    parsed_files: list[dict],
+    *,
+    source_dir: str,
+    virtual_prefix: str,
+    build_subdir: str,
+) -> None:
+    """Copy files into docs/ and register them for stlite URL mounting."""
+    if not os.path.isdir(source_dir):
+        return
+
+    dest_dir = os.path.join(build_dir, build_subdir)
+    os.makedirs(dest_dir, exist_ok=True)
+
+    for filename in sorted(os.listdir(source_dir)):
+        if _should_skip_static_asset(filename):
+            continue
+        source_path = os.path.join(source_dir, filename)
+        if not os.path.isfile(source_path):
+            continue
+
+        shutil.copy(source_path, os.path.join(dest_dir, filename))
+        virtual_path = f"{virtual_prefix}/{filename}"
+        parsed_files.append(
+            {"name": virtual_path, "content": {"url": virtual_path}}
+        )
+
 
 def build_site():
     # Load the template
@@ -105,22 +76,24 @@ def build_site():
                     file_name = os.path.join(root, file).replace("pmotools-app/", "")
                     content = f.read()
                     if file_name == "PMO_Builder.py":
-                        content = _VERSION_LOG_SNIPPET + content
-                    content = escape_python_strings(content)
-                    parsed_files.append({"name": file_name, "content": f"`{content}`"})
+                        content = _COMMIT_LOG_SNIPPET + content
+                    parsed_files.append({"name": file_name, "content": json.dumps(content)})
 
-    # Add the images to the parsed files
-    for root, dirs, files in os.walk("pmotools-app"):
-        if any(dir in root for dir in ignored_dirs):
-            continue
-        for file in files:
-            if file.endswith(".png"):
-                file_name = os.path.join(root, file).replace("pmotools-app/", "")
-                # copy the file to the build directory
-                os.makedirs(os.path.join(build_dir, "images"), exist_ok=True)
-                shutil.copy(os.path.join(root, file), os.path.join(build_dir, "images", file))
-                build_url = f"images/{file}"
-                parsed_files.append({"name": file_name, "content": {"url": build_url}})
+    # Add static image assets
+    _add_url_mounted_assets(
+        parsed_files,
+        source_dir=os.path.join("pmotools-app", "images"),
+        virtual_prefix="images",
+        build_subdir="images",
+    )
+
+    # Add example data files used by the app (e.g. PMO template download)
+    _add_url_mounted_assets(
+        parsed_files,
+        source_dir=os.path.join("pmotools-app", "example_data"),
+        virtual_prefix="example_data",
+        build_subdir="example_data",
+    )
 
     # Add conf files to the parsed files
     for root, dirs, files in os.walk("pmotools-app"):
@@ -130,7 +103,7 @@ def build_site():
             if file.endswith(".json"):
                 with open(os.path.join(root, file), "r") as f:
                     file_name = os.path.join(root, file).replace("pmotools-app/", "")
-                    parsed_files.append({"name": file_name, "content": f"`{f.read()}`"})
+                    parsed_files.append({"name": file_name, "content": json.dumps(f.read())})
 
 
     # Render the template
@@ -143,12 +116,7 @@ def build_site():
 
 
 if __name__ == "__main__":
-    print(f"Stlite @{_STLITE_BROWSER_VERSION} / Pyodide v{_PYODIDE_VERSION}")
     print(f"pmotools-app: {_PMOTOOLS_APP_COMMIT}")
-    print(f"Lockfile: {_PYODIDE_LOCK_URL}")
-    print("Requirements (from pmotools-app/pyproject.toml):")
-    for req in requirements:
-        print(f"  {req}")
     for warning in _requirement_warnings:
-        print(f"  warning: {warning}")
+        print(f"warning: {warning}", file=sys.stderr)
     build_site()

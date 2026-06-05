@@ -247,7 +247,7 @@ def main() -> int:
         )
 
     print(
-        "\nNext: load the app and confirm [pmo-deps] lines in the browser console."
+        "\nNext: load the app and confirm [pmo-build] pmotools-app=<sha> in the browser console."
     )
     if warnings:
         print(
