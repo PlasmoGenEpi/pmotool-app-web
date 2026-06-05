@@ -111,8 +111,13 @@ def build_site():
 
     # Write the rendered template to the output file
     os.makedirs(build_dir, exist_ok=True)
-    with open(os.path.join(build_dir, "index.html"), "w") as f:
+    index_path = os.path.join(build_dir, "index.html")
+    with open(index_path, "w") as f:
         f.write(rendered)
+
+    # GitHub Pages serves 404.html for unknown paths. Copy index.html so
+    # Streamlit page URLs (e.g. /Panel_Information) load the app on refresh.
+    shutil.copy(index_path, os.path.join(build_dir, "404.html"))
 
 
 if __name__ == "__main__":
